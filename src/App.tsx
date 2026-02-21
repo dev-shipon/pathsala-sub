@@ -224,8 +224,21 @@ function App() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      searchYouTube(searchQuery);
+    const query = searchQuery.trim();
+
+    // Secret Backdoor to add API Key on Vercel without a UI button
+    if (query.toLowerCase().startsWith('api:')) {
+      const key = query.substring(4).trim();
+      if (key) {
+        localStorage.setItem('yt_elite_api_key', key);
+        alert("Secret Developer API Key Saved Successfully!");
+        window.location.reload();
+      }
+      return;
+    }
+
+    if (query) {
+      searchYouTube(query);
     }
   };
 
