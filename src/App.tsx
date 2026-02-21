@@ -495,7 +495,14 @@ function App() {
 
                 {videos.length === 0 && !loading && (
                   <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
-                    <h3>No results found. Access restricted or query yielded nothing.</h3>
+                    {!apiKey ? (
+                      <>
+                        <h3>System Pending Configuration.</h3>
+                        <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>Developer Mode: Please enter <code style={{ color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>api:YOUR_YOUTUBE_KEY</code> in the search bar to initialize the system.</p>
+                      </>
+                    ) : (
+                      <h3>No results found. Access restricted or query yielded nothing.</h3>
+                    )}
                   </div>
                 )}
 
