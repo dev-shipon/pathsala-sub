@@ -135,7 +135,8 @@ function App() {
       const data = await resp.json();
 
       if (data.error) {
-        alert("API Error: " + data.error.message);
+        console.error("API Error: ", data.error.message);
+        setVideos([]);
         setLoading(false);
         setIsFetchingMore(false);
         return;
@@ -187,7 +188,7 @@ function App() {
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to fetch videos. Check your network or API quota.");
+      setVideos([]);
     } finally {
       setLoading(false);
       setIsFetchingMore(false);
