@@ -535,11 +535,12 @@ function App() {
                 ) : (
                   <iframe
                     loading="lazy"
-                    src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                    src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&rel=0&modestbranding=1&playsinline=1&fs=1`}
                     title="YouTube video player"
                     frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                     allowFullScreen
+                    style={{ width: '100%', height: '100%' }}
                   ></iframe>
                 )}
               </div>
