@@ -115,7 +115,6 @@ function App() {
   const searchYouTube = async (query: string, pageToken: string | null = null) => {
     if (!isOnline) return; // Prevent fetch if offline
     if (!apiKey) {
-      alert("API Key is missing in .env.local!");
       return;
     }
 
