@@ -378,7 +378,7 @@ function App() {
             title="Study Mode"
           >
             <BookIcon />
-            <span className="hidden-mobile" style={{ fontSize: '0.8rem' }}>Study Mode</span>
+            <span style={{ fontSize: '0.8rem' }}>Study Mode</span>
           </button>
         </div>
 
