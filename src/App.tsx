@@ -40,10 +40,9 @@ const ShareIcon = () => (
   </svg>
 );
 
-const SettingsIcon = () => (
+const BookIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3"></circle>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
   </svg>
 );
 
@@ -64,8 +63,7 @@ interface OfflineVideo extends Video {
 
 function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [apiKey, setApiKey] = useState(import.meta.env.VITE_YOUTUBE_API_KEY || localStorage.getItem('yt_elite_api_key') || '');
-  const [isKeyEditing, setIsKeyEditing] = useState(!apiKey);
+  const [apiKey] = useState(import.meta.env.VITE_YOUTUBE_API_KEY || localStorage.getItem('yt_elite_api_key') || '');
   const [searchQuery, setSearchQuery] = useState('trending 4k video');
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(false);
@@ -117,7 +115,7 @@ function App() {
   const searchYouTube = async (query: string, pageToken: string | null = null) => {
     if (!isOnline) return; // Prevent fetch if offline
     if (!apiKey) {
-      setIsKeyEditing(true);
+      alert("API Key is missing in .env.local!");
       return;
     }
 
@@ -198,7 +196,7 @@ function App() {
   };
 
   useEffect(() => {
-    if (apiKey && !isKeyEditing) {
+    if (apiKey) {
       searchYouTube(searchQuery);
     }
   }, []); // Only run once on mount if we have key
@@ -228,15 +226,6 @@ function App() {
     e.preventDefault();
     if (searchQuery.trim()) {
       searchYouTube(searchQuery);
-    }
-  };
-
-  const saveApiKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (apiKey.trim()) {
-      localStorage.setItem('yt_elite_api_key', apiKey.trim());
-      setIsKeyEditing(false);
-      searchYouTube(searchQuery || 'trending 4k video');
     }
   };
 
@@ -383,11 +372,13 @@ function App() {
           </form>
 
           <button
-            className="btn settings-btn"
-            onClick={() => setIsKeyEditing(!isKeyEditing)}
-            title="Settings"
+            className="btn study-mode-btn"
+            style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.4rem 0.8rem', borderRadius: '8px' }}
+            onClick={() => alert("Study Mode is currently under development. Stay tuned for distraction-free focused learning!")}
+            title="Study Mode"
           >
-            <SettingsIcon />
+            <BookIcon />
+            <span className="hidden-mobile" style={{ fontSize: '0.8rem' }}>Study Mode</span>
           </button>
         </div>
 
@@ -406,33 +397,6 @@ function App() {
           </button>
         </div>
       </header>
-
-      {/* API Key Banner */}
-      {isKeyEditing && activeTab === 'feed' && (
-        <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'var(--primary)' }}>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <SettingsIcon /> Core System Setup
-            </h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              To access the full YouTube database, enter your official YouTube Data API v3 Key. Your key is stored securely in your local browser storage.
-            </p>
-          </div>
-          <form onSubmit={saveApiKey} style={{ display: 'flex', gap: '0.5rem', flex: 1 }}>
-            <input
-              type="password"
-              className="search-input"
-              placeholder="AIzaSy..."
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              style={{ width: '100%' }}
-            />
-            <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem 1.5rem' }}>
-              Connect
-            </button>
-          </form>
-        </div>
-      )}
 
       {/* Main Grid */}
       <main className="animate-fade-in" style={{ animationDelay: '0.2s', minHeight: '60vh' }}>
@@ -516,7 +480,7 @@ function App() {
                   ))}
                 </div>
 
-                {videos.length === 0 && !isKeyEditing && !loading && (
+                {videos.length === 0 && !loading && (
                   <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
                     <h3>No results found. Access restricted or query yielded nothing.</h3>
                   </div>

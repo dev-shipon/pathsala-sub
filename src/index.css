@@ -105,10 +105,10 @@ a {
 .header {
   display: flex;
   flex-direction: column;
-  padding: 1rem 2rem 0;
+  padding: 0.75rem 1.5rem 0;
   margin-bottom: 2rem;
   position: sticky;
-  top: 1rem;
+  top: 0;
   z-index: 100;
 }
 
@@ -117,7 +117,7 @@ a {
   width: 100%;
   justify-content: space-between;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .tabs-container {
@@ -212,8 +212,8 @@ a {
 
 .search-input {
   width: 100%;
-  padding: 0.75rem 1.5rem;
-  padding-right: 3rem;
+  padding: 0.5rem 1rem;
+  padding-right: 2.5rem;
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid var(--glass-border);
   border-radius: 999px;
@@ -575,27 +575,33 @@ a {
   }
 
   .header {
-    padding: 1rem 1rem 0;
-    top: 0.5rem;
+    padding: 0.5rem 1rem 0;
+    top: 0;
   }
 
   .header-top {
-    flex-wrap: wrap;
-    gap: 1rem;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
   }
 
   .logo-container {
-    flex: 1;
+    flex: 0 0 auto;
   }
 
-  .settings-btn {
-    order: 2;
+  .study-mode-btn {
+    order: 3;
+    padding: 0.4rem;
   }
 
   .search-container {
-    order: 3;
+    order: 2;
     width: 100%;
-    max-width: 100%;
+    flex: 1;
+    max-width: none;
+  }
+
+  .hidden-mobile {
+    display: none;
   }
 
   .player-controls {
