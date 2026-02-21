@@ -361,46 +361,48 @@ function App() {
 
       {/* Header Area */}
       <header className="header glass-panel animate-fade-in text-white">
-        <div className="logo-container">
-          <div className="logo-icon pulse-glow">
-            <PlayIcon />
+        <div className="header-top">
+          <div className="logo-container">
+            <div className="logo-icon pulse-glow">
+              <PlayIcon />
+            </div>
+            <span className="logo-text">YT ELITE</span>
           </div>
-          <span className="logo-text">YT ELITE</span>
+
+          <form className="search-container" onSubmit={handleSearchSubmit}>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search YouTube..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button type="submit" className="search-button">
+              <SearchIcon />
+            </button>
+          </form>
+
+          <button
+            className="btn settings-btn"
+            onClick={() => setIsKeyEditing(!isKeyEditing)}
+            title="Settings"
+          >
+            <SettingsIcon />
+          </button>
         </div>
 
-        <form className="search-container" onSubmit={handleSearchSubmit}>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search YouTube..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button type="submit" className="search-button">
-            <SearchIcon />
-          </button>
-        </form>
-
-        <button
-          className="btn"
-          style={{ background: 'transparent', padding: '0.5rem', color: 'var(--text-muted)' }}
-          onClick={() => setIsKeyEditing(!isKeyEditing)}
-          title="Settings"
-        >
-          <SettingsIcon />
-        </button>
-        <div className="tabs-container" style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="tabs-container">
           <button
             onClick={() => setActiveTab('feed')}
-            style={{ background: 'transparent', border: 'none', padding: '0.75rem 1.5rem', color: activeTab === 'feed' ? 'white' : 'var(--text-muted)', borderBottom: activeTab === 'feed' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 'bold' }}
+            className={`tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
           >
             Elite Feed
           </button>
           <button
             onClick={() => setActiveTab('offline')}
-            style={{ background: 'transparent', border: 'none', padding: '0.75rem 1.5rem', color: activeTab === 'offline' ? 'white' : 'var(--text-muted)', borderBottom: activeTab === 'offline' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 'bold' }}
+            className={`tab-btn ${activeTab === 'offline' ? 'active' : ''}`}
           >
-            Offline Library <span style={{ background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', marginLeft: '6px' }}>{offlineVideos.length}</span>
+            Offline Library <span className="tab-badge">{offlineVideos.length}</span>
           </button>
         </div>
       </header>

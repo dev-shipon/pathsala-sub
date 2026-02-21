@@ -104,13 +104,76 @@ a {
 /* Header */
 .header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
+  flex-direction: column;
+  padding: 1rem 2rem 0;
   margin-bottom: 2rem;
   position: sticky;
   top: 1rem;
   z-index: 100;
+}
+
+.header-top {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.tabs-container {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.tabs-container::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari */
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  color: white;
+  border-bottom-color: var(--primary);
+}
+
+.tab-btn:hover {
+  color: white;
+}
+
+.tab-badge {
+  background: var(--primary);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  margin-left: 6px;
+}
+
+.settings-btn {
+  background: transparent;
+  padding: 0.5rem;
+  color: var(--text-muted);
+}
+
+.settings-btn:hover {
+  color: white;
 }
 
 .logo-container {
@@ -500,16 +563,39 @@ a {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .app-container {
+    padding: 1.5rem;
+  }
+}
+
 @media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    gap: 1rem;
+  .app-container {
     padding: 1rem;
   }
 
+  .header {
+    padding: 1rem 1rem 0;
+    top: 0.5rem;
+  }
+
+  .header-top {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .logo-container {
+    flex: 1;
+  }
+
+  .settings-btn {
+    order: 2;
+  }
+
   .search-container {
+    order: 3;
     width: 100%;
-    max-width: none;
+    max-width: 100%;
   }
 
   .player-controls {
@@ -520,10 +606,52 @@ a {
   .action-buttons {
     width: 100%;
     justify-content: stretch;
+    flex-wrap: wrap;
   }
 
   .btn {
     flex: 1;
     justify-content: center;
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-container {
+    padding: 0.5rem;
+  }
+
+  .header {
+    margin-bottom: 1rem;
+  }
+
+  .logo-text {
+    font-size: 1.25rem;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .tab-btn {
+    padding: 0.75rem 1rem;
+  }
+
+  .search-input {
+    padding: 0.6rem 1rem;
+    padding-right: 2.5rem;
+  }
+
+  .btn {
+    min-width: 100%;
+  }
+
+  .download-modal {
+    padding: 1.5rem;
+  }
+
+  .player-container {
+    gap: 1rem;
   }
 }
