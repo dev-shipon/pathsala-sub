@@ -70,7 +70,7 @@ function App() {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'feed' | 'offline'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'offline' | 'study'>('feed');
   const [offlineVideos, setOfflineVideos] = useState<OfflineVideo[]>(() => {
     const saved = localStorage.getItem('yt_elite_offline');
     if (saved) {
@@ -384,9 +384,15 @@ function App() {
           </form>
 
           <button
-            className="btn study-mode-btn"
-            style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.4rem 0.8rem', borderRadius: '8px' }}
-            onClick={() => alert("Study Mode is currently under development. Stay tuned for distraction-free focused learning!")}
+            className={`btn study-mode-btn ${activeTab === 'study' ? 'active' : ''}`}
+            style={{
+              display: 'flex', gap: '8px', alignItems: 'center',
+              background: activeTab === 'study' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.2)',
+              color: activeTab === 'study' ? '#fff' : '#60a5fa',
+              border: activeTab === 'study' ? '1px solid #3b82f6' : '1px solid transparent',
+              padding: '0.4rem 0.8rem', borderRadius: '8px'
+            }}
+            onClick={() => setActiveTab('study')}
             title="Study Mode"
           >
             <BookIcon />
@@ -412,7 +418,11 @@ function App() {
 
       {/* Main Grid */}
       <main className="animate-fade-in" style={{ animationDelay: '0.2s', minHeight: '60vh' }}>
-        {activeTab === 'offline' ? (
+        {activeTab === 'study' ? (
+          <div className="study-container animate-fade-in" style={{ width: '100%', height: 'calc(100vh - 150px)', minHeight: '600px', borderRadius: '1rem', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+            <iframe src="/study/index.html" style={{ width: '100%', height: '100%', border: 'none', background: '#f9f9f9' }} title="Talukdar Pathshala - Study Mode"></iframe>
+          </div>
+        ) : activeTab === 'offline' ? (
           <>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <span>Downloaded <span style={{ color: 'var(--primary)' }}>Videos</span></span>
