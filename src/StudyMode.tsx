@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { db, auth } from './firebase';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword } from 'firebase/auth';
 
 interface StudyModeProps {
     setActiveVideo: (video: any) => void;
@@ -19,14 +22,21 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
     const [bookCatFilter, setBookCatFilter] = useState<string>('all');
     const [bookSearch, setBookSearch] = useState('');
 
-    // Admin state
+    const [loading, setLoading] = useState(true);
+
+    // Admin / Auth state
+    const [adminUser, setAdminUser] = useState<any>(null);
     const [adminModalOpen, setAdminModalOpen] = useState(false);
     const [adminPassOpen, setAdminPassOpen] = useState(false);
+    const [adminEmail, setAdminEmail] = useState('');
     const [adminPass, setAdminPass] = useState('');
+    const [adminLoginError, setAdminLoginError] = useState('');
+    const [adminLoginLoading, setAdminLoginLoading] = useState(false);
     const [adminDept, setAdminDept] = useState('Computer');
     const [adminSemName, setAdminSemName] = useState('');
     const [adminSemSlug, setAdminSemSlug] = useState('');
     const [adminJson, setAdminJson] = useState('');
+    const [adminSaving, setAdminSaving] = useState(false);
 
     // Book admin state
     const [adminTab, setAdminTab] = useState<'syllabus' | 'books' | 'security'>('syllabus');
@@ -35,22 +45,39 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
     const [bookUrl, setBookUrl] = useState('');
     const [bookCover, setBookCover] = useState('');
     const [bookDept, setBookDept] = useState('Computer');
-    const [editBookIdx, setEditBookIdx] = useState<number | null>(null);
+    const [editBookId, setEditBookId] = useState<string | null>(null);
 
     // Password change state
-    const [oldPass, setOldPass] = useState('');
     const [newPass, setNewPass] = useState('');
     const [confirmPass, setConfirmPass] = useState('');
+    const [passChangeLoading, setPassChangeLoading] = useState(false);
 
+    // ─── Firebase: Realtime listeners — ALL visitors see same data ──
     useEffect(() => {
-        const data = localStorage.getItem('pathshala_data');
-        if (data) setAllData(JSON.parse(data));
-        const books = localStorage.getItem('pathshala_books');
-        if (books) setAllBooks(JSON.parse(books));
-    }, []);
+        const unsubAuth = onAuthStateChanged(auth, (user) => setAdminUser(user || null));
 
-    // Get stored password (default '1122')
-    const getStoredPassword = () => localStorage.getItem('pathshala_admin_pass') || '1122';
+        // Courses realtime
+        const qData = query(collection(db, 'pathshala_data'), orderBy('updatedAt', 'desc'));
+        const unsubData = onSnapshot(qData, (snap) => {
+            setAllData(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
+            setLoading(false);
+        }, () => {
+            const data = localStorage.getItem('pathshala_data');
+            if (data) setAllData(JSON.parse(data));
+            setLoading(false);
+        });
+
+        // Books realtime
+        const qBooks = query(collection(db, 'pathshala_books'), orderBy('addedAt', 'desc'));
+        const unsubBooks = onSnapshot(qBooks, (snap) => {
+            setAllBooks(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
+        }, () => {
+            const books = localStorage.getItem('pathshala_books');
+            if (books) setAllBooks(JSON.parse(books));
+        });
+
+        return () => { unsubAuth(); unsubData(); unsubBooks(); };
+    }, []);
 
     const departments = useMemo(() => Array.from(new Set(allData.map(d => d.department))), [allData]);
     const semesters = useMemo(() => (!selectedDept ? [] : allData.filter(d => d.department === selectedDept)), [selectedDept, allData]);
@@ -116,52 +143,75 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
         return `${Math.floor(diff / 86400)} days ago`;
     };
 
-    const verifyAdmin = () => {
-        if (adminPass === getStoredPassword()) { setAdminPassOpen(false); setAdminModalOpen(true); setAdminPass(''); }
-        else { alert('Incorrect Password!'); setAdminPass(''); }
+    // ─── Firebase Admin Login ──────────────────────────────────────
+    const verifyAdmin = async () => {
+        if (!adminEmail || !adminPass) return setAdminLoginError('Email and password required!');
+        setAdminLoginLoading(true); setAdminLoginError('');
+        try {
+            await signInWithEmailAndPassword(auth, adminEmail, adminPass);
+            setAdminPassOpen(false); setAdminModalOpen(true);
+            setAdminEmail(''); setAdminPass('');
+        } catch (e: any) {
+            setAdminLoginError(e.message?.includes('wrong-password') || e.message?.includes('invalid-credential')
+                ? 'Incorrect email or password!'
+                : 'Login failed. Check your credentials.');
+        } finally { setAdminLoginLoading(false); }
     };
 
-    const saveAdminData = () => {
+    const logoutAdmin = async () => {
+        await signOut(auth); setAdminModalOpen(false);
+    };
+
+    // ─── Firestore: Save / Delete Syllabus ───────────────────────
+    const saveAdminData = async () => {
         if (!adminSemName || !adminSemSlug || !adminJson) return alert('Fill all fields!');
         try {
+            setAdminSaving(true);
             const item = { department: adminDept, semesterName: adminSemName, slug: adminSemSlug, fullData: JSON.parse(adminJson), updatedAt: new Date().toISOString() };
-            let newData = [...allData];
-            const idx = newData.findIndex(d => d.slug === adminSemSlug);
-            if (idx !== -1) newData[idx] = item; else newData.push(item);
-            setAllData(newData);
-            localStorage.setItem('pathshala_data', JSON.stringify(newData));
-            alert('Saved!'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
-        } catch { alert('Invalid JSON!'); }
+            await setDoc(doc(db, 'pathshala_data', adminSemSlug), item);
+            alert('✅ Saved to Firebase!'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
+        } catch (e: any) {
+            if (e.message?.includes('JSON')) alert('Invalid JSON!');
+            else alert('Save failed: ' + e.message);
+        } finally { setAdminSaving(false); }
     };
 
-    const deleteAdminData = () => {
-        if (!adminSemSlug || !window.confirm('Delete?')) return;
-        const newData = allData.filter(d => d.slug !== adminSemSlug);
-        setAllData(newData); localStorage.setItem('pathshala_data', JSON.stringify(newData));
-        alert('Deleted.'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
+    const deleteAdminData = async () => {
+        if (!adminSemSlug || !window.confirm('Delete this semester?')) return;
+        try {
+            await deleteDoc(doc(db, 'pathshala_data', adminSemSlug));
+            alert('Deleted.'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
+        } catch (e: any) { alert('Delete failed: ' + e.message); }
     };
 
-    const saveBook = () => {
+    // ─── Firestore: Save / Delete Books ─────────────────────────
+    const saveBook = async () => {
         if (!bookTitle || !bookUrl) return alert('Title and URL are required!');
-        const book = { title: bookTitle, category: bookCategory, url: bookUrl, cover: bookCover, department: bookDept, addedAt: new Date().toISOString() };
-        let newBooks = [...allBooks];
-        if (editBookIdx !== null) { newBooks[editBookIdx] = book; setEditBookIdx(null); }
-        else newBooks.push(book);
-        setAllBooks(newBooks); localStorage.setItem('pathshala_books', JSON.stringify(newBooks));
-        alert('Book saved!'); setBookTitle(''); setBookUrl(''); setBookCover(''); setBookCategory('Master Book');
+        try {
+            setAdminSaving(true);
+            const book = { title: bookTitle, category: bookCategory, url: bookUrl, cover: bookCover, department: bookDept, addedAt: new Date().toISOString() };
+            if (editBookId) {
+                await setDoc(doc(db, 'pathshala_books', editBookId), book);
+                setEditBookId(null);
+            } else {
+                await addDoc(collection(db, 'pathshala_books'), book);
+            }
+            alert('✅ Book saved!'); setBookTitle(''); setBookUrl(''); setBookCover(''); setBookCategory('Master Book');
+        } catch (e: any) {
+            alert('Save failed: ' + e.message);
+        } finally { setAdminSaving(false); }
     };
 
-    const deleteBook = (idx: number) => {
+    const deleteBook = async (firestoreId: string) => {
         if (!window.confirm('Delete this book?')) return;
-        const newBooks = allBooks.filter((_, i) => i !== idx);
-        setAllBooks(newBooks); localStorage.setItem('pathshala_books', JSON.stringify(newBooks));
+        try { await deleteDoc(doc(db, 'pathshala_books', firestoreId)); }
+        catch (e: any) { alert('Delete failed: ' + e.message); }
     };
 
-    const editBook = (idx: number) => {
-        const b = allBooks[idx];
+    const editBook = (b: any) => {
         setBookTitle(b.title); setBookUrl(b.url); setBookCover(b.cover || '');
         setBookCategory(b.category); setBookDept(b.department || 'Computer');
-        setEditBookIdx(idx); setAdminTab('books');
+        setEditBookId(b.firestoreId); setAdminTab('books');
     };
 
     const handleVideoClick = (v: any, sub: any) => {
@@ -191,6 +241,13 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
     if (!selectedDept) {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
+                {/* Firebase loading indicator */}
+                {loading && (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem', animation: 'spin 1s linear infinite' }}>🔄</div>
+                        Firebase থেকে data লোড হচ্ছে...
+                    </div>
+                )}
                 {/* Top tab: Classes or Books */}
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '4px' }}>
@@ -288,19 +345,27 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                     )
                 )}
 
-                {/* ─── Admin Password Modal ─── */}
+                {/* ─── Admin Login Modal (Firebase Email/Password) ─── */}
                 {adminPassOpen && (
                     <div className="download-modal-overlay active" style={{ zIndex: 3000 }}>
                         <div className="download-modal glass-panel" style={{ maxWidth: '400px', textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
-                            <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Admin Access</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Enter Control Password</p>
-                            <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && verifyAdmin()}
-                                style={{ width: '100%', padding: '1rem', borderRadius: '12px', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--primary)', color: 'white', textAlign: 'center', letterSpacing: '0.5em', fontSize: '1.5rem', outline: 'none', marginBottom: '1.5rem' }}
-                                placeholder="****" maxLength={4} />
+                            <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Admin Login</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Sign in with your Firebase account</p>
+                            <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && verifyAdmin()}
+                                style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', outline: 'none', marginBottom: '0.75rem', fontSize: '0.95rem' }}
+                                placeholder="Admin Email" />
+                            <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && verifyAdmin()}
+                                style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', outline: 'none', marginBottom: '0.75rem', fontSize: '0.95rem' }}
+                                placeholder="Password" />
+                            {adminLoginError && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>⚠️ {adminLoginError}</div>}
                             <div style={{ display: 'flex', gap: '1rem' }}>
-                                <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => setAdminPassOpen(false)}>Cancel</button>
-                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={verifyAdmin}>Login</button>
+                                <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => { setAdminPassOpen(false); setAdminLoginError(''); }}>Cancel</button>
+                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={verifyAdmin} disabled={adminLoginLoading}>
+                                    {adminLoginLoading ? '...' : 'Login'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -313,9 +378,12 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>
                                     <h2 style={{ color: 'white', fontSize: '1.3rem' }}>Study Control Center</h2>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Admin Panel</p>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Logged in as: {adminUser?.email}</p>
                                 </div>
-                                <button className="btn" style={{ background: 'transparent', color: 'white' }} onClick={() => setAdminModalOpen(false)}>✕ Close</button>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button className="btn" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: '1px solid #ef444444' }} onClick={logoutAdmin}>Logout</button>
+                                    <button className="btn" style={{ background: 'transparent', color: 'white' }} onClick={() => setAdminModalOpen(false)}>✕ Close</button>
+                                </div>
                             </div>
 
                             {/* Admin Sub-tabs */}
@@ -377,15 +445,15 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                     {/* Saved books list */}
                                     <div style={{ flex: '1 1 200px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '1rem', overflowY: 'auto' }}>
                                         <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Saved Books ({allBooks.length})</h3>
-                                        {allBooks.map((b, i) => (
-                                            <div key={i} style={{ padding: '0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '0.4rem', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                        {allBooks.map((b) => (
+                                            <div key={b.firestoreId} style={{ padding: '0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '0.4rem', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                                                 <div style={{ overflow: 'hidden' }}>
                                                     <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
                                                     <div style={{ color: '#f59e0b', fontSize: '0.62rem', fontWeight: 'bold' }}>{b.category}</div>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
-                                                    <button onClick={() => editBook(i)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(59,130,246,0.2)', color: '#3b82f6', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✎</button>
-                                                    <button onClick={() => deleteBook(i)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✕</button>
+                                                    <button onClick={() => editBook(b)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(59,130,246,0.2)', color: '#3b82f6', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✎</button>
+                                                    <button onClick={() => deleteBook(b.firestoreId)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✕</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -393,7 +461,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
 
                                     {/* Add/Edit Book Form */}
                                     <div style={{ flex: '2 1 320px', overflowY: 'auto' }}>
-                                        <h3 style={{ color: 'white', fontWeight: 'bold', marginBottom: '1rem', fontSize: '1rem' }}>{editBookIdx !== null ? '✎ Edit Book' : '+ Add New Book'}</h3>
+                                        <h3 style={{ color: 'white', fontWeight: 'bold', marginBottom: '1rem', fontSize: '1rem' }}>{editBookId ? '✎ Edit Book' : '+ Add New Book'}</h3>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Category</label>
@@ -421,39 +489,32 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                             <input type="text" value={bookCover} onChange={e => setBookCover(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="https://..." />
                                         </div>
                                         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                            {editBookIdx !== null && <button className="btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', flex: 1, minWidth: '100px' }} onClick={() => { setEditBookIdx(null); setBookTitle(''); setBookUrl(''); setBookCover(''); }}>Cancel</button>}
-                                            <button className="btn" style={{ background: bookCategory === 'Master Book' ? '#f59e0b' : 'var(--primary)', color: 'white', flex: 2, minWidth: '140px', border: 'none' }} onClick={saveBook}>
-                                                {editBookIdx !== null ? '✓ Update Book' : '+ Save Book'}
+                                            {editBookId && <button className="btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', flex: 1, minWidth: '100px' }} onClick={() => { setEditBookId(null); setBookTitle(''); setBookUrl(''); setBookCover(''); }}>Cancel</button>}
+                                            <button className="btn" style={{ background: bookCategory === 'Master Book' ? '#f59e0b' : 'var(--primary)', color: 'white', flex: 2, minWidth: '140px', border: 'none', opacity: adminSaving ? 0.7 : 1 }} onClick={saveBook} disabled={adminSaving}>
+                                                {adminSaving ? 'Saving...' : editBookId ? '✓ Update Book' : '+ Save Book'}
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* 🔒 Security Tab */}
+                            {/* 🔒 Security Tab — Firebase Password Change */}
                             {adminTab === 'security' && (
                                 <div style={{ maxWidth: '420px', margin: '0 auto' }}>
                                     <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                                             <div style={{ fontSize: '2rem' }}>🔑</div>
                                             <div>
-                                                <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>Change Admin Password</div>
-                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Stored securely in your browser</div>
+                                                <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>Change Firebase Password</div>
+                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Updates your Firebase Auth password</div>
                                             </div>
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Password</label>
-                                            <input type="password" value={oldPass} onChange={e => setOldPass(e.target.value)}
-                                                style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', fontSize: '1rem' }}
-                                                placeholder="Enter current password" />
                                         </div>
 
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New Password</label>
                                             <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)}
                                                 style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', fontSize: '1rem' }}
-                                                placeholder="Enter new password" />
+                                                placeholder="Enter new password (min 6 chars)" />
                                         </div>
 
                                         <div>
@@ -467,22 +528,29 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                         </div>
 
                                         <button
-                                            onClick={() => {
-                                                if (!oldPass || !newPass || !confirmPass) return alert('Please fill all fields!');
-                                                if (oldPass !== getStoredPassword()) return alert('❌ Current password is incorrect!');
-                                                if (newPass.length < 4) return alert('New password must be at least 4 characters!');
+                                            disabled={passChangeLoading}
+                                            onClick={async () => {
+                                                if (!newPass || !confirmPass) return alert('Please fill all fields!');
+                                                if (newPass.length < 6) return alert('Password must be at least 6 characters!');
                                                 if (newPass !== confirmPass) return alert('❌ New passwords do not match!');
-                                                localStorage.setItem('pathshala_admin_pass', newPass);
-                                                alert('✅ Password changed successfully!');
-                                                setOldPass(''); setNewPass(''); setConfirmPass('');
+                                                if (!adminUser) return alert('Not logged in!');
+                                                setPassChangeLoading(true);
+                                                try {
+                                                    await updatePassword(adminUser, newPass);
+                                                    alert('✅ Password changed successfully! Please log in again.');
+                                                    setNewPass(''); setConfirmPass('');
+                                                    await signOut(auth); setAdminModalOpen(false);
+                                                } catch (e: any) {
+                                                    alert('❌ Failed: ' + (e.message?.includes('requires-recent-login') ? 'Please log out and log in again first.' : e.message));
+                                                } finally { setPassChangeLoading(false); }
                                             }}
-                                            style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.95rem', transition: 'all 0.2s' }}
+                                            style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: passChangeLoading ? '#666' : 'linear-gradient(135deg, #ef4444, #b91c1c)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.95rem', transition: 'all 0.2s' }}
                                         >
-                                            🔐 Update Password
+                                            {passChangeLoading ? 'Updating...' : '🔐 Update Firebase Password'}
                                         </button>
 
-                                        <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '10px', padding: '1rem', fontSize: '0.75rem', color: '#fcd34d', lineHeight: 1.6 }}>
-                                            ⚠️ <strong>Important:</strong> If you forget your password, it's stored in your browser's localStorage under key <code style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: '4px' }}>pathshala_admin_pass</code>. Default password is <strong>1122</strong>.
+                                        <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '10px', padding: '1rem', fontSize: '0.75rem', color: '#93c5fd', lineHeight: 1.6 }}>
+                                            ℹ️ This updates your <strong>Firebase Authentication</strong> password used to log in to the Admin Panel.
                                         </div>
                                     </div>
                                 </div>
