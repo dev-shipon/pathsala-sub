@@ -348,7 +348,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                 {/* ─── Admin Login Modal (Firebase Email/Password) ─── */}
                 {adminPassOpen && (
                     <div className="download-modal-overlay active" style={{ zIndex: 3000 }}>
-                        <div className="download-modal glass-panel" style={{ maxWidth: '400px', textAlign: 'center' }}>
+                        <div className="download-modal glass-panel" style={{ width: '90%', maxWidth: '400px', textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
                             <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Admin Login</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Sign in with your Firebase account</p>
@@ -361,9 +361,9 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                 style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', outline: 'none', marginBottom: '0.75rem', fontSize: '0.95rem' }}
                                 placeholder="Password" />
                             {adminLoginError && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>⚠️ {adminLoginError}</div>}
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => { setAdminPassOpen(false); setAdminLoginError(''); }}>Cancel</button>
-                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={verifyAdmin} disabled={adminLoginLoading}>
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                <button className="btn" style={{ flex: 1, minWidth: '120px', background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => { setAdminPassOpen(false); setAdminLoginError(''); }}>Cancel</button>
+                                <button className="btn btn-primary" style={{ flex: 1, minWidth: '120px' }} onClick={verifyAdmin} disabled={adminLoginLoading}>
                                     {adminLoginLoading ? '...' : 'Login'}
                                 </button>
                             </div>
@@ -374,7 +374,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                 {/* ─── Admin Panel Modal ─── */}
                 {adminModalOpen && (
                     <div className="download-modal-overlay active" style={{ zIndex: 3000 }}>
-                        <div className="download-modal glass-panel" style={{ maxWidth: '1000px', width: '95%', maxHeight: '90vh', padding: '2rem', display: 'flex', flexDirection: 'column' }}>
+                        <div className="download-modal glass-panel admin-panel-modal" style={{ maxWidth: '1000px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>
                                     <h2 style={{ color: 'white', fontSize: '1.3rem' }}>Study Control Center</h2>
