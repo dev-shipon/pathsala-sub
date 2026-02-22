@@ -724,12 +724,19 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                 <>
                     <div className="video-grid">
                         {filteredClasses.map((v, idx) => (
-                            <div key={v.id + idx} className="video-card glass-panel animate-fade-in" style={{ animationDelay: `${Math.min(0.05 * idx, 0.8)}s`, display: 'flex', flexDirection: 'column' }}>
+                            <div key={v.id + idx} className="video-card glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
                                 <div className="video-thumbnail-container" onClick={() => handleVideoClick(v, { title: v.subTitle })} style={{ cursor: 'pointer' }}>
-                                    <img loading="lazy" decoding="async" src={`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`} alt="Thumbnail" className="video-thumbnail" />
+                                    <img
+                                        src={`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`}
+                                        alt={v.title}
+                                        className="video-thumbnail"
+                                        loading={idx < 6 ? "eager" : "lazy"}
+                                        decoding="async"
+                                        fetchPriority={idx < 2 ? "high" : "auto"}
+                                    />
                                     <span className="video-duration" style={{ background: v.type === 'live' ? 'rgba(239,68,68,0.9)' : 'rgba(59,130,246,0.9)' }}>{v.type.toUpperCase()}</span>
                                 </div>
-                                <div className="video-info" style={{ flex: 1, cursor: 'pointer' }} onClick={() => handleVideoClick(v, { title: v.subTitle })}>
+                                <div className="video-info" style={{ cursor: 'pointer' }} onClick={() => handleVideoClick(v, { title: v.subTitle })}>
                                     <h3 className="video-title text-white">{v.title}</h3>
                                     <div className="video-channel"><span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>✓</span> {v.subTitle}</div>
                                     <div className="video-meta">{timeAgo(v.date)}</div>

@@ -242,6 +242,8 @@ a {
   gap: 2rem;
   margin-top: 2rem;
   grid-auto-rows: auto;
+  align-items: start;
+  /* PREVENTS TALL EMPTY SPACE AT BOTTOM OF CARDS */
 }
 
 .video-card {
@@ -254,6 +256,8 @@ a {
   /* Fixed minimum height to prevent collapse */
   background: var(--bg-card);
   flex-shrink: 0;
+  width: 100%;
+  /* Ensure standard size */
 }
 
 .video-card:hover {
