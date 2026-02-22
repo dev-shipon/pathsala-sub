@@ -10,7 +10,9 @@
         
         body {
             font-family: 'Noto Sans Bengali', 'Segoe UI', sans-serif;
-            background-color: #f9f9f9;
+            background-color: #0f172a;
+            color: #f8fafc;
+            background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%), radial-gradient(circle at 85% 30%, rgba(239, 68, 68, 0.1), transparent 25%);
         }
 
         .video-card:hover .thumbnail-overlay {
@@ -28,13 +30,13 @@
             border-radius: 10px;
         }
 
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        @keyframes pulse-blue {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
         .btn-pulse {
-            animation: pulse-red 2s infinite;
+            animation: pulse-blue 2s infinite;
         }
 
         .modal-fade-in {
@@ -46,70 +48,70 @@
         }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden">
+<body class="flex flex-col h-screen overflow-hidden text-slate-100">
 
     <!-- Navbar -->
-    <nav class="bg-white px-4 py-2 flex items-center justify-between shadow-sm z-50">
+    <nav class="bg-slate-800/80 backdrop-blur-md border-b border-white/10 px-4 py-2 flex items-center justify-between shadow-lg z-50">
         <div class="flex items-center gap-4">
-            <button id="menu-toggle" class="p-2 hover:bg-gray-100 rounded-full">☰</button>
+            <button id="menu-toggle" class="p-2 hover:bg-slate-700 rounded-full text-slate-200">☰</button>
             <div class="flex items-center gap-1 cursor-pointer" onclick="resetView()">
-                <span class="text-red-600 text-3xl font-bold">▶</span>
+                <span class="text-blue-500 text-3xl font-bold">▶</span>
                 <span class="font-bold text-xl tracking-tighter hidden sm:inline">Talukdar Pathshala</span>
             </div>
         </div>
 
         <div class="flex-grow max-w-2xl mx-4 flex items-center gap-2">
             <!-- Global Selectors -->
-            <select id="dept-selector" class="bg-gray-100 border-none px-4 py-2 rounded-full text-xs font-bold focus:ring-2 focus:ring-red-500 cursor-pointer shrink-0">
+            <select id="dept-selector" class="bg-slate-700 text-slate-100 border-none px-4 py-2 rounded-full text-xs font-bold focus:ring-2 focus:ring-blue-500 cursor-pointer shrink-0">
                 <option value="">ডিপার্টমেন্ট</option>
             </select>
-            <select id="semester-selector" class="bg-gray-100 border-none px-4 py-2 rounded-full text-xs font-bold focus:ring-2 focus:ring-red-500 cursor-pointer shrink-0">
+            <select id="semester-selector" class="bg-slate-700 text-slate-100 border-none px-4 py-2 rounded-full text-xs font-bold focus:ring-2 focus:ring-blue-500 cursor-pointer shrink-0">
                 <option value="">সেমিস্টার</option>
             </select>
             <!-- Re-added Search Input to prevent null errors -->
-            <input type="text" id="search-input" placeholder="সার্চ করুন..." class="hidden md:block w-full border border-gray-300 px-4 py-2 rounded-full focus:outline-none focus:border-blue-500 text-sm">
+            <input type="text" id="search-input" placeholder="সার্চ করুন..." class="hidden md:block w-full bg-slate-900 border border-slate-600 text-slate-100 px-4 py-2 rounded-full focus:outline-none focus:border-blue-400 text-sm">
         </div>
 
         <div class="flex items-center gap-3">
-            <button id="admin-login-btn" class="bg-gray-800 text-white text-[10px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest hover:bg-black transition">Admin</button>
+            <button id="admin-login-btn" class="bg-slate-600 text-white text-[10px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest hover:bg-slate-500 transition">Admin</button>
             <div id="status-dot" class="w-3 h-3 bg-green-500 rounded-full"></div>
         </div>
     </nav>
 
     <div class="flex flex-1 overflow-hidden">
-        <aside id="sidebar" class="w-64 bg-white overflow-y-auto custom-scroll hidden lg:block border-r border-gray-100">
+        <aside id="sidebar" class="w-64 bg-slate-800/50 backdrop-blur-sm overflow-y-auto custom-scroll hidden lg:block border-r border-white/10">
             <div class="p-4 space-y-1">
-                <button onclick="resetView()" class="w-full text-left px-3 py-2 rounded-lg bg-gray-100 font-bold flex items-center gap-2 transition-all">🏠 হোম</button>
-                <hr class="my-4 border-gray-100">
-                <h3 class="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest">অধ্যায়/বিষয়</h3>
+                <button onclick="resetView()" class="w-full text-left px-3 py-2 rounded-lg bg-slate-700 text-slate-100 font-bold flex items-center gap-2 transition-all">🏠 হোম</button>
+                <hr class="my-4 border-slate-700">
+                <h3 class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-widest">অধ্যায়/বিষয়</h3>
                 <div id="sidebar-subjects">
-                    <p class="px-3 py-2 text-xs text-gray-400 italic">প্রথমে সেমিস্টার সিলেক্ট করুন</p>
+                    <p class="px-3 py-2 text-xs text-slate-400 italic">প্রথমে সেমিস্টার সিলেক্ট করুন</p>
                 </div>
             </div>
         </aside>
 
-        <main class="flex-1 bg-gray-50 overflow-y-auto custom-scroll">
+        <main class="flex-1 bg-transparent overflow-y-auto custom-scroll">
             <!-- Welcome View -->
             <div id="welcome-view" class="flex flex-col items-center justify-center min-h-full text-center p-6">
-                <div id="grid-header-icon" class="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner">🏫</div>
-                <h1 id="grid-header-title" class="text-3xl font-bold text-gray-800 mb-2 italic">তালুকদার পাঠশালা</h1>
-                <p id="grid-header-subtitle" class="text-gray-500 max-w-md mx-auto mb-8 text-sm">ডিপার্টমেন্ট ফোল্ডার সিলেক্ট করে পড়া শুরু করুন।</p>
+                <div id="grid-header-icon" class="w-20 h-20 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner">🏫</div>
+                <h1 id="grid-header-title" class="text-3xl font-bold text-slate-100 mb-2 italic">তালুকদার পাঠশালা</h1>
+                <p id="grid-header-subtitle" class="text-slate-400 max-w-md mx-auto mb-8 text-sm">ডিপার্টমেন্ট ফোল্ডার সিলেক্ট করে পড়া শুরু করুন।</p>
                 <div id="main-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-6 w-full max-w-3xl">
                     <!-- Dynamic Grid cards -->
                 </div>
-                <button id="back-to-depts" onclick="renderDeptGrid()" class="hidden mt-8 text-red-600 font-bold hover:underline">← ডিপার্টমেন্টে ফিরে যান</button>
+                <button id="back-to-depts" onclick="renderDeptGrid()" class="hidden mt-8 text-blue-500 font-bold hover:underline">← ডিপার্টমেন্টে ফিরে যান</button>
             </div>
 
             <!-- Dashboard Content -->
             <div id="dashboard-content" class="hidden">
-                <div id="course-banner" class="bg-gradient-to-r from-slate-900 to-red-900 p-6 sm:p-10 text-white shadow-2xl relative overflow-hidden">
+                <div id="course-banner" class="bg-gradient-to-r from-slate-900 to-blue-900 p-6 sm:p-10 text-white shadow-2xl relative overflow-hidden">
                     <div class="max-w-4xl relative z-10">
                         <div class="flex gap-2 mb-2">
                             <span id="banner-dept-label" class="bg-white/20 backdrop-blur-md text-[9px] font-bold px-2 py-0.5 rounded border border-white/20 uppercase tracking-widest">DEPT</span>
-                            <span id="banner-semester-label" class="bg-red-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">SEMESTER</span>
+                            <span id="banner-semester-label" class="bg-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">SEMESTER</span>
                         </div>
                         <h1 id="course-title" class="text-2xl sm:text-4xl font-bold mb-2 uppercase">কোর্সের নাম</h1>
-                        <p id="course-subtitle" class="text-red-100 text-sm sm:text-base mb-6 opacity-80 leading-relaxed italic">লোড হচ্ছে...</p>
+                        <p id="course-subtitle" class="text-blue-100 text-sm sm:text-base mb-6 opacity-80 leading-relaxed italic">লোড হচ্ছে...</p>
                         <div class="flex flex-wrap gap-4 text-xs sm:text-sm">
                             <span class="bg-white/10 px-3 py-1 rounded-full border border-white/20">👥 <span id="student-count">০</span> শিক্ষার্থী</span>
                             <span class="bg-white/10 px-3 py-1 rounded-full border border-white/20">🎥 <span id="video-count">০</span> ক্লাস</span>
@@ -117,8 +119,8 @@
                     </div>
                 </div>
 
-                <div class="sticky top-0 bg-gray-50/95 backdrop-blur px-4 py-3 flex gap-3 overflow-x-auto no-scrollbar z-40 border-b border-gray-200" id="category-chips">
-                    <button onclick="filterBySubject('all')" class="chip-active px-4 py-1.5 bg-black text-white rounded-lg text-sm whitespace-nowrap">সবগুলো</button>
+                <div class="sticky top-0 bg-slate-900/95 backdrop-blur px-4 py-3 flex gap-3 overflow-x-auto no-scrollbar z-40 border-b border-slate-800" id="category-chips">
+                    <button onclick="filterBySubject('all')" class="chip-active px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm whitespace-nowrap">সবগুলো</button>
                 </div>
 
                 <div class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-10" id="video-grid"></div>
@@ -128,43 +130,43 @@
 
     <!-- Admin Password Modal -->
     <div id="password-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[120] hidden items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl modal-fade-in text-center">
+        <div class="bg-slate-800 text-slate-100 border border-white/10 w-full max-w-sm rounded-3xl p-8 shadow-2xl modal-fade-in text-center">
             <div class="text-4xl mb-4">🔐</div>
             <h2 class="text-xl font-bold mb-2">অ্যাডমিন অ্যাক্সেস</h2>
-            <p class="text-xs text-gray-500 mb-6 font-medium uppercase tracking-widest">পাসওয়ার্ড প্রদান করুন</p>
-            <input type="password" id="admin-pass-input" class="w-full bg-gray-100 border-2 border-transparent focus:border-red-500 rounded-2xl px-4 py-4 text-center font-bold tracking-[1em] outline-none transition-all mb-6" placeholder="****" maxlength="4">
+            <p class="text-xs text-slate-400 mb-6 font-medium uppercase tracking-widest">পাসওয়ার্ড প্রদান করুন</p>
+            <input type="password" id="admin-pass-input" class="w-full bg-slate-900 border-2 border-slate-700 text-slate-100 focus:border-red-500 rounded-2xl px-4 py-4 text-center font-bold tracking-[1em] outline-none transition-all mb-6" placeholder="****" maxlength="4">
             <div class="flex gap-3">
-                <button onclick="closePasswordModal()" class="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-2xl transition">বাতিল</button>
-                <button onclick="verifyAdmin()" class="flex-1 py-3 bg-red-600 text-white font-bold rounded-2xl shadow-lg hover:bg-red-700 transition">প্রবেশ করুন</button>
+                <button onclick="closePasswordModal()" class="flex-1 py-3 text-slate-400 font-bold hover:bg-slate-700 rounded-2xl transition">বাতিল</button>
+                <button onclick="verifyAdmin()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition">প্রবেশ করুন</button>
             </div>
         </div>
     </div>
 
     <!-- Admin Panel Modal -->
     <div id="admin-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[110] hidden items-center justify-center p-4">
-        <div class="bg-white w-full max-w-6xl rounded-3xl p-6 sm:p-10 shadow-2xl modal-fade-in overflow-hidden flex flex-col max-h-[95vh]">
+        <div class="bg-slate-800 text-slate-100 border border-white/10 w-full max-w-6xl rounded-3xl p-6 sm:p-10 shadow-2xl modal-fade-in overflow-hidden flex flex-col max-h-[95vh]">
             <div class="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
                 <div>
-                    <h2 class="text-3xl font-bold text-gray-800">অ্যাডমিন কন্ট্রোল সেন্টার</h2>
-                    <p class="text-sm text-gray-500 mt-1">লুকায়িত লোকাল ডাটাবেস</p>
+                    <h2 class="text-3xl font-bold text-slate-100">অ্যাডমিন কন্ট্রোল সেন্টার</h2>
+                    <p class="text-sm text-slate-400 mt-1">লুকায়িত লোকাল ডাটাবেস</p>
                 </div>
                 <div class="flex gap-4">
-                    <button onclick="clearAdminFields()" class="bg-blue-50 text-blue-600 px-6 py-2 rounded-xl font-bold text-sm border border-blue-200">+ নতুন এড করুন</button>
-                    <button onclick="closeAdminModal()" class="text-gray-400 hover:text-gray-600 text-3xl">✕</button>
+                    <button onclick="clearAdminFields()" class="bg-blue-500/20 text-blue-500 border border-blue-500/30 px-6 py-2 rounded-xl font-bold text-sm ">+ নতুন এড করুন</button>
+                    <button onclick="closeAdminModal()" class="text-slate-400 hover:text-gray-600 text-3xl">✕</button>
                 </div>
             </div>
             
             <div class="flex flex-1 gap-8 overflow-hidden">
                 <div class="w-1/3 flex flex-col border-r pr-6 shrink-0">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">সেভ করা সেমিস্টারসমূহ</h3>
+                    <h3 class="text-xs font-bold text-slate-400 uppercase mb-4 tracking-widest">সেভ করা সেমিস্টারসমূহ</h3>
                     <div id="admin-data-list" class="flex-1 overflow-y-auto custom-scroll space-y-2 pr-2"></div>
                 </div>
 
                 <div class="flex-1 overflow-y-auto custom-scroll pr-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div class="space-y-2">
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest">ডিপার্টমেন্ট</label>
-                            <select id="admin-dept" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-red-500 outline-none">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">ডিপার্টমেন্ট</label>
+                            <select id="admin-dept" class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option value="Computer">Computer</option>
                                 <option value="Civil">Civil</option>
                                 <option value="Electrical">Electrical</option>
@@ -173,21 +175,21 @@
                             </select>
                         </div>
                         <div class="space-y-2">
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest">সেমিস্টার নাম</label>
-                            <input type="text" id="admin-sem-name" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-red-500 outline-none" placeholder="e.g. 2nd Semester">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">সেমিস্টার নাম</label>
+                            <input type="text" id="admin-sem-name" class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. 2nd Semester">
                         </div>
                         <div class="space-y-2 col-span-2">
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest">ইউনিক স্লাগ</label>
-                            <input type="text" id="admin-sem-slug" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-red-500 outline-none" placeholder="e.g. computer-2nd">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">ইউনিক স্লাগ</label>
+                            <input type="text" id="admin-sem-slug" class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. computer-2nd">
                         </div>
                     </div>
                     <div class="space-y-2 mb-8">
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest">API JSON ডাটা</label>
-                        <textarea id="admin-json-input" class="w-full h-[300px] border border-gray-200 rounded-2xl p-6 font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50" placeholder='Paste API response here...'></textarea>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">API JSON ডাটা</label>
+                        <textarea id="admin-json-input" class="w-full h-[300px] border border-gray-200 rounded-2xl p-6 font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" placeholder='Paste API response here...'></textarea>
                     </div>
                     <div class="flex items-center justify-between pb-10">
-                        <button id="admin-del-btn" onclick="deleteSelected()" class="hidden px-8 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 border border-red-200">ডিলিট করুন</button>
-                        <button onclick="saveAdminData()" class="px-16 py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 shadow-2xl transition transform active:scale-95 ml-auto">পাবলিশ / আপডেট করুন</button>
+                        <button id="admin-del-btn" onclick="deleteSelected()" class="hidden px-8 py-3 bg-blue-500/20 text-blue-500 rounded-xl font-bold hover:bg-red-100 border border-red-200">ডিলিট করুন</button>
+                        <button onclick="saveAdminData()" class="px-16 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-gray-800 shadow-2xl transition transform active:scale-95 ml-auto">পাবলিশ / আপডেট করুন</button>
                     </div>
                 </div>
             </div>
@@ -196,8 +198,8 @@
 
     <!-- Video Action Modal -->
     <div id="video-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
-        <div class="bg-white w-full max-w-md rounded-[40px] overflow-hidden shadow-2xl modal-fade-in relative">
-            <button onclick="closePlayer()" class="absolute top-6 right-6 z-10 bg-black/20 hover:bg-black/40 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all">✕</button>
+        <div class="bg-slate-800 text-slate-100 border border-white/10 w-full max-w-md rounded-[40px] overflow-hidden shadow-2xl modal-fade-in relative">
+            <button onclick="closePlayer()" class="absolute top-6 right-6 z-10 bg-black/20 hover:bg-slate-500/40 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all">✕</button>
             <div class="relative aspect-video">
                 <img id="modal-thumb" src="" class="w-full h-full object-cover" alt="Thumbnail">
                 <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
@@ -246,12 +248,12 @@
             
             depts.forEach(d => {
                 const card = document.createElement('div');
-                card.className = "bg-white p-6 rounded-3xl shadow-sm border border-gray-50 cursor-pointer hover:shadow-xl transition-all group border-b-4 border-b-transparent hover:border-b-red-500";
+                card.className = "bg-white p-6 rounded-3xl shadow-sm border border-gray-50 cursor-pointer hover:shadow-xl transition-all group border-b-4 border-b-transparent hover:border-b-blue-500";
                 card.onclick = () => showSemesterGrid(d);
                 card.innerHTML = `
                     <div class="text-3xl mb-3 transition-transform group-hover:scale-125">📂</div>
-                    <div class="font-bold text-gray-800">${d}</div>
-                    <div class="text-[10px] text-gray-400 font-bold uppercase mt-1">DEPARTMENT</div>
+                    <div class="font-bold text-slate-100">${d}</div>
+                    <div class="text-[10px] text-slate-400 font-bold uppercase mt-1">DEPARTMENT</div>
                 `;
                 grid.appendChild(card);
             });
@@ -275,8 +277,8 @@
                 card.onclick = () => window.loadSemesterContent(s.slug);
                 card.innerHTML = `
                     <div class="text-3xl mb-3 transition-transform group-hover:scale-110">📘</div>
-                    <div class="font-bold text-gray-800">${s.semesterName}</div>
-                    <div class="text-[10px] text-gray-400 font-bold uppercase mt-1">CLICK TO VIEW</div>
+                    <div class="font-bold text-slate-100">${s.semesterName}</div>
+                    <div class="text-[10px] text-slate-400 font-bold uppercase mt-1">CLICK TO VIEW</div>
                 `;
                 grid.appendChild(card);
             });
@@ -366,18 +368,18 @@
             const sidebar = document.getElementById('sidebar-subjects');
             const chips = document.getElementById('category-chips');
             if (sidebar) sidebar.innerHTML = '';
-            if (chips) chips.innerHTML = `<button onclick="window.setFilter('all')" class="px-4 py-1.5 bg-black text-white rounded-lg text-sm whitespace-nowrap">সবগুলো</button>`;
+            if (chips) chips.innerHTML = `<button onclick="window.setFilter('all')" class="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm whitespace-nowrap">সবগুলো</button>`;
             if (!activeCourse) return;
             activeCourse.forEach(sub => {
                 const sBtn = document.createElement('button');
-                sBtn.className = "w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm truncate flex items-center gap-2 transition";
-                sBtn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> ${sub.title}`;
+                sBtn.className = "w-full text-left px-3 py-2 rounded-lg hover:bg-slate-700 hover:text-white text-sm truncate flex items-center gap-2 transition";
+                sBtn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> ${sub.title}`;
                 sBtn.onclick = () => window.setFilter(sub.id);
                 sidebar.appendChild(sBtn);
 
                 const cBtn = document.createElement('button');
                 cBtn.id = `chip-${sub.id}`;
-                cBtn.className = "px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm whitespace-nowrap hover:bg-gray-300";
+                cBtn.className = "px-4 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm whitespace-nowrap hover:bg-slate-700";
                 cBtn.textContent = sub.title;
                 cBtn.onclick = () => window.setFilter(sub.id);
                 chips.appendChild(cBtn);
@@ -388,9 +390,9 @@
         window.setFilter = (id) => {
             activeFilter = id;
             const allChips = document.querySelectorAll('#category-chips button');
-            allChips.forEach(c => c.className = "px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm whitespace-nowrap hover:bg-gray-300");
+            allChips.forEach(c => c.className = "px-4 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm whitespace-nowrap hover:bg-slate-700");
             const active = id === 'all' ? allChips[0] : document.getElementById(`chip-${id}`);
-            if (active) active.className = "px-4 py-1.5 bg-black text-white rounded-lg text-sm whitespace-nowrap shadow-xl";
+            if (active) active.className = "px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm whitespace-nowrap shadow-xl";
             window.renderVideos();
         };
 
@@ -409,7 +411,7 @@
                             card.onclick = () => playV(v.id, v.title, v.type);
                             const typeC = v.type === 'live' ? 'bg-red-600' : 'bg-blue-600';
                             card.innerHTML = `
-                                <div class="relative aspect-video rounded-3xl overflow-hidden bg-gray-100 shadow-sm ring-1 ring-gray-100">
+                                <div class="relative aspect-video rounded-3xl overflow-hidden bg-slate-800 shadow-sm ring-1 ring-white/10">
                                     <img src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg" class="w-full h-full object-cover group-hover:scale-110 transition duration-700">
                                     <div class="absolute top-3 left-3 ${typeC} text-white text-[8px] font-bold px-2 py-0.5 rounded shadow-sm z-10">${v.type.toUpperCase()}</div>
                                     <div class="thumbnail-overlay absolute inset-0 bg-black/30 opacity-0 flex items-center justify-center transition-opacity">
@@ -417,10 +419,10 @@
                                     </div>
                                 </div>
                                 <div class="flex gap-3 px-2">
-                                    <div class="flex-shrink-0 w-10 h-10 rounded-2xl bg-gray-900 flex items-center justify-center text-white font-bold text-xs uppercase">${sub.title.charAt(0)}</div>
+                                    <div class="flex-shrink-0 w-10 h-10 rounded-2xl bg-slate-900 flex items-center justify-center text-white font-bold text-xs uppercase">${sub.title.charAt(0)}</div>
                                     <div class="flex-1">
-                                        <h3 class="font-bold text-sm text-gray-900 leading-snug line-clamp-2 text-left group-hover:text-red-600">${v.title}</h3>
-                                        <p class="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-tighter text-left">${sub.title} • ${timeA(v.date)}</p>
+                                        <h3 class="font-bold text-sm text-slate-100 leading-snug line-clamp-2 text-left group-hover:text-blue-400">${v.title}</h3>
+                                        <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter text-left">${sub.title} • ${timeA(v.date)}</p>
                                     </div>
                                 </div>
                             `;
@@ -437,9 +439,9 @@
             list.innerHTML = '';
             allData.forEach(item => {
                 const div = document.createElement('div');
-                div.className = "p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-red-50 border border-transparent transition";
+                div.className = "p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-slate-900/50 border border-transparent transition";
                 div.onclick = () => populateAdminForm(item);
-                div.innerHTML = `<div class="font-bold text-gray-700 text-xs">${item.semesterName}</div><div class="text-[9px] text-gray-400 font-bold uppercase">${item.department}</div>`;
+                div.innerHTML = `<div class="font-bold text-gray-700 text-xs">${item.semesterName}</div><div class="text-[9px] text-slate-400 font-bold uppercase">${item.department}</div>`;
                 list.appendChild(div);
             });
         };
