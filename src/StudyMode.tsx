@@ -395,8 +395,8 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
 
                             {/* Syllabus Admin */}
                             {adminTab === 'syllabus' && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', overflow: 'hidden', flex: 1 }}>
-                                    <div style={{ flex: '1 1 200px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '1rem', overflowY: 'auto' }}>
+                                <div className="admin-layout">
+                                    <div className="admin-sidebar">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                             <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Saved</h3>
                                             <button className="btn" style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6', border: '1px solid #3b82f6', padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={() => { setAdminSemName(''); setAdminSemSlug(''); setAdminJson(''); }}>+ New</button>
@@ -410,7 +410,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                             </div>
                                         ))}
                                     </div>
-                                    <div style={{ flex: '2 1 360px', overflowY: 'auto' }}>
+                                    <div className="admin-content">
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Department</label>
@@ -441,9 +441,9 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
 
                             {/* Books Admin */}
                             {adminTab === 'books' && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', flex: 1, overflow: 'hidden' }}>
+                                <div className="admin-layout">
                                     {/* Saved books list */}
-                                    <div style={{ flex: '1 1 200px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '1rem', overflowY: 'auto' }}>
+                                    <div className="admin-sidebar">
                                         <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Saved Books ({allBooks.length})</h3>
                                         {allBooks.map((b) => (
                                             <div key={b.firestoreId} style={{ padding: '0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '0.4rem', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
@@ -460,7 +460,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                     </div>
 
                                     {/* Add/Edit Book Form */}
-                                    <div style={{ flex: '2 1 320px', overflowY: 'auto' }}>
+                                    <div className="admin-content">
                                         <h3 style={{ color: 'white', fontWeight: 'bold', marginBottom: '1rem', fontSize: '1rem' }}>{editBookId ? '✎ Edit Book' : '+ Add New Book'}</h3>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                                             <div>

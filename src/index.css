@@ -595,6 +595,27 @@ a {
   transition: width 0.3s ease;
 }
 
+/* Admin Panel Responsive Layout */
+.admin-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.admin-sidebar {
+  flex: 1 1 250px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 1rem;
+  overflow-y: auto;
+}
+
+.admin-content {
+  flex: 2 1 320px;
+  overflow-y: auto;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .app-container {
@@ -649,6 +670,25 @@ a {
     width: 100%;
     justify-content: stretch;
     flex-wrap: wrap;
+  }
+
+  .admin-layout {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .admin-sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-right: 0;
+    padding-bottom: 1.5rem;
+    max-height: 250px;
+    /* Let it scroll horizontally or vertically if too many */
+    flex: 1 1 auto;
+  }
+
+  .admin-content {
+    flex: 1 1 auto;
   }
 
   .btn {
