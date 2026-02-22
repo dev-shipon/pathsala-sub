@@ -245,7 +245,7 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                 {loading && (
                     <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem', animation: 'spin 1s linear infinite' }}>🔄</div>
-                        Firebase থেকে data লোড হচ্ছে...
+                        Loading...
                     </div>
                 )}
                 {/* Top tab: Classes or Books */}
