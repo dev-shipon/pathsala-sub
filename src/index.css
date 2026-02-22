@@ -242,8 +242,8 @@ a {
   gap: 2rem;
   margin-top: 2rem;
   grid-auto-rows: auto;
-  align-items: start;
-  /* PREVENTS TALL EMPTY SPACE AT BOTTOM OF CARDS */
+  align-content: start;
+  /* PREVENTS SINGLE ROWS FROM BECOMING HUGE */
 }
 
 .video-card {

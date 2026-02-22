@@ -736,10 +736,10 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                                     />
                                     <span className="video-duration" style={{ background: v.type === 'live' ? 'rgba(239,68,68,0.9)' : 'rgba(59,130,246,0.9)' }}>{v.type.toUpperCase()}</span>
                                 </div>
-                                <div className="video-info" style={{ cursor: 'pointer' }} onClick={() => handleVideoClick(v, { title: v.subTitle })}>
+                                <div className="video-info" style={{ flex: 1, cursor: 'pointer' }} onClick={() => handleVideoClick(v, { title: v.subTitle })}>
                                     <h3 className="video-title text-white">{v.title}</h3>
                                     <div className="video-channel"><span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>✓</span> {v.subTitle}</div>
-                                    <div className="video-meta">{timeAgo(v.date)}</div>
+                                    <div className="video-meta" style={{ marginTop: 'auto' }}>{timeAgo(v.date)}</div>
                                 </div>
                                 {/* Attached Notes */}
                                 {v.notes && v.notes.length > 0 && (
