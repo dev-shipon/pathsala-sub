@@ -3,14 +3,12 @@ import { db, auth } from '../../firebase';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { FaBook, FaVideo, FaShieldAlt, FaTrash, FaEdit, FaPlus, FaSignOutAlt, FaHome } from 'react-icons/fa';
+import { FaBook, FaVideo, FaShieldAlt, FaTrash, FaPlus, FaSignOutAlt, FaHome } from 'react-icons/fa';
 
 const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [allData, setAllData] = useState<any[]>([]);
-  const [allBooks, setAllBooks] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'syllabus' | 'books' | 'users'>('users');
-  const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<any[]>([]);
 
   // Syllabus Form
@@ -39,7 +37,6 @@ const AdminPanel: React.FC = () => {
 
     const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('createdAt', 'desc')), (snap) => {
       setAllUsers(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
-      setLoading(false);
     });
 
     return () => { unsubscribe(); unsubData(); unsubUsers(); };
