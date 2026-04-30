@@ -1,89 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, auth } from './firebase';
-import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword } from 'firebase/auth';
+import { db } from './firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { motion } from 'framer-motion';
 
 interface StudyModeProps {
-    setActiveVideo: (video: any) => void;
+    setActiveVideo: (video: any, playlist?: any[]) => void;
 }
-
-// ─── Book Categories ────────────────────────────────────────────
-const BOOK_CATEGORIES = ['Master Book', 'Others Book', 'Reference', 'Question Bank'];
 
 const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
     const [allData, setAllData] = useState<any[]>([]);
     const [allBooks, setAllBooks] = useState<any[]>([]);
     const [selectedDept, setSelectedDept] = useState<string | null>(null);
-    const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
-    const [activeFilter, setActiveFilter] = useState<string>('all');
-    const [localSearch, setLocalSearch] = useState('');
-    const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
+    const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+    const [activeFilter, setActiveFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const [mainTab, setMainTab] = useState<'classes' | 'books'>('classes');
-    const [bookCatFilter, setBookCatFilter] = useState<string>('all');
-    const [bookSearch, setBookSearch] = useState('');
-
     const [loading, setLoading] = useState(true);
 
-    // Admin / Auth state
-    const [adminUser, setAdminUser] = useState<any>(null);
-    const [adminModalOpen, setAdminModalOpen] = useState(false);
-    const [adminPassOpen, setAdminPassOpen] = useState(false);
-    const [adminEmail, setAdminEmail] = useState('');
-    const [adminPass, setAdminPass] = useState('');
-    const [adminLoginError, setAdminLoginError] = useState('');
-    const [adminLoginLoading, setAdminLoginLoading] = useState(false);
-    const [adminDept, setAdminDept] = useState('Computer');
-    const [adminSemName, setAdminSemName] = useState('');
-    const [adminSemSlug, setAdminSemSlug] = useState('');
-    const [adminJson, setAdminJson] = useState('');
-    const [adminSaving, setAdminSaving] = useState(false);
-
-    // Book admin state
-    const [adminTab, setAdminTab] = useState<'syllabus' | 'books' | 'security'>('syllabus');
-    const [bookTitle, setBookTitle] = useState('');
-    const [bookCategory, setBookCategory] = useState('Master Book');
-    const [bookUrl, setBookUrl] = useState('');
-    const [bookCover, setBookCover] = useState('');
-    const [bookDept, setBookDept] = useState('Computer');
-    const [editBookId, setEditBookId] = useState<string | null>(null);
-
-    // Password change state
-    const [newPass, setNewPass] = useState('');
-    const [confirmPass, setConfirmPass] = useState('');
-    const [passChangeLoading, setPassChangeLoading] = useState(false);
-
-    // ─── Firebase: Realtime listeners — ALL visitors see same data ──
     useEffect(() => {
-        const unsubAuth = onAuthStateChanged(auth, (user) => setAdminUser(user || null));
-
-        // Courses realtime
-        const qData = query(collection(db, 'pathshala_data'), orderBy('updatedAt', 'desc'));
-        const unsubData = onSnapshot(qData, (snap) => {
+        const unsub = onSnapshot(query(collection(db, 'pathshala_data'), orderBy('updatedAt', 'desc')), (snap) => {
             setAllData(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
             setLoading(false);
-        }, () => {
-            const data = localStorage.getItem('pathshala_data');
-            if (data) setAllData(JSON.parse(data));
-            setLoading(false);
         });
-
-        // Books realtime
-        const qBooks = query(collection(db, 'pathshala_books'), orderBy('addedAt', 'desc'));
-        const unsubBooks = onSnapshot(qBooks, (snap) => {
-            setAllBooks(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
-        }, () => {
-            const books = localStorage.getItem('pathshala_books');
-            if (books) setAllBooks(JSON.parse(books));
+        const unsubBooks = onSnapshot(collection(db, 'books'), (snap) => {
+            setAllBooks(snap.docs.map(d => d.data()));
         });
-
-        return () => { unsubAuth(); unsubData(); unsubBooks(); };
+        return () => { unsub(); unsubBooks(); };
     }, []);
 
     const departments = useMemo(() => Array.from(new Set(allData.map(d => d.department))), [allData]);
-    const semesters = useMemo(() => (!selectedDept ? [] : allData.filter(d => d.department === selectedDept)), [selectedDept, allData]);
-    const activeCourse = useMemo(() => (!selectedSemester ? null : allData.find(d => d.slug === selectedSemester) || null), [selectedSemester, allData]);
+    const filteredCourses = useMemo(() => selectedDept ? allData.filter(d => d.department === selectedDept) : [], [allData, selectedDept]);
+    const activeCourse = useMemo(() => allData.find(d => d.firestoreId === selectedCourse), [allData, selectedCourse]);
 
-    // Collect ALL standalone PDFs from the course JSON (type='pdf' items with no parent video)
     const parsedCourseData = useMemo(() => {
         if (!activeCourse) return { subjects: [], standalonePdfs: [] };
         const subjects: { id: string; title: string; classes: any[] }[] = [];
@@ -94,35 +42,31 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
                 const classes: any[] = [];
                 const sectionName = s.title || 'General';
 
+                // Filter out Orientation and Rules sections (Robustly)
+                const lowerTitle = sectionName.toLowerCase();
+                const blacklistedKeywords = ['orientation', 'নিয়ম', 'নিয়ম', 'niyon', 'rules', 'instruction', 'কিভাবে ক্লাস করবেন'];
+                if (blacklistedKeywords.some(keyword => lowerTitle.includes(keyword))) {
+                    return;
+                }
+
                 if (s.contents) {
                     s.contents.forEach((c: any) => {
                         if (c.type === 'video' || c.type === 'live') {
-                            // Video/Live class
                             const reg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
                             const link = c.resource?.resourceable?.link || '';
                             const match = link.match(reg);
                             const id = (match && match[2].length === 11) ? match[2] : null;
                             if (id) classes.push({ title: c.title, id, type: c.type, date: c.available_from, notes: [] });
                         } else if (c.type === 'pdf') {
-                            // PDF — attach to last video if exists, otherwise standalone
                             const pdfLink = c.resource?.resourceable?.link || c.resource?.resourceable?.file_url || c.resource?.resourceable?.url || c.resource?.link || '';
                             if (pdfLink) {
                                 if (classes.length > 0) {
-                                    // Attach as note to last video
                                     classes[classes.length - 1].notes.push({ title: c.title, url: pdfLink, date: c.available_from });
                                 } else {
-                                    // Standalone PDF (appears before any video in section)
                                     standalonePdfs.push({ title: c.title, url: pdfLink, sectionTitle: sectionName, date: c.available_from });
                                 }
                             }
-                        } else if (c.type === 'link') {
-                            // External link — attach to last video as a link note
-                            const extLink = c.resource?.resourceable?.link || c.resource?.link || '';
-                            if (extLink && classes.length > 0) {
-                                classes[classes.length - 1].notes.push({ title: c.title, url: extLink, isLink: true, date: c.available_from });
-                            }
                         }
-                        // Ignore other unknown types silently
                     });
                 }
                 if (classes.length > 0) subjects.push({ id: s.slug || s.id?.toString() || sectionName, title: sectionName, classes });
@@ -132,651 +76,429 @@ const StudyMode: React.FC<StudyModeProps> = ({ setActiveVideo }) => {
     }, [activeCourse]);
 
     const parsedSubjects = parsedCourseData.subjects;
-    const standalonePdfs = parsedCourseData.standalonePdfs;
 
+    const filteredSections = useMemo(() => {
+        let result = parsedSubjects;
+        if (activeFilter !== 'all') {
+            result = result.filter(s => s.id === activeFilter);
+        }
+        if (searchQuery) {
+            result = result.map(s => ({
+                ...s,
+                classes: s.classes.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
+            })).filter(s => s.classes.length > 0);
+        }
+        return result;
+    }, [parsedSubjects, activeFilter, searchQuery]);
 
-    const timeAgo = (d: string) => {
-        if (!d) return 'Just Now';
-        const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-        if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)} hrs ago`;
-        return `${Math.floor(diff / 86400)} days ago`;
+    if (loading) return null;
+
+    const deptIcons: Record<string, string> = {
+        'Computer': '💻',
+        'Civil': '🏗️',
+        'Electrical': '⚡',
+        'Mechanical': '⚙️',
+        'Electronics': '📡',
+        'Textile': '🧶'
     };
 
-    // ─── Firebase Admin Login ──────────────────────────────────────
-    const verifyAdmin = async () => {
-        if (!adminEmail || !adminPass) return setAdminLoginError('Email and password required!');
-        setAdminLoginLoading(true); setAdminLoginError('');
-        try {
-            await signInWithEmailAndPassword(auth, adminEmail, adminPass);
-            setAdminPassOpen(false); setAdminModalOpen(true);
-            setAdminEmail(''); setAdminPass('');
-        } catch (e: any) {
-            setAdminLoginError(e.message?.includes('wrong-password') || e.message?.includes('invalid-credential')
-                ? 'Incorrect email or password!'
-                : 'Login failed. Check your credentials.');
-        } finally { setAdminLoginLoading(false); }
+    const deptColors: Record<string, string> = {
+        'Computer': 'from-blue-600/20 to-indigo-600/20 border-blue-500/30 text-blue-400',
+        'Civil': 'from-amber-600/20 to-orange-600/20 border-amber-500/30 text-amber-400',
+        'Electrical': 'from-yellow-600/20 to-orange-600/20 border-yellow-500/30 text-yellow-400',
+        'Mechanical': 'from-slate-600/20 to-gray-600/20 border-slate-500/30 text-slate-400',
+        'Electronics': 'from-cyan-600/20 to-blue-600/20 border-cyan-500/30 text-cyan-400',
+        'Textile': 'from-pink-600/20 to-rose-600/20 border-pink-500/30 text-pink-400'
     };
 
-    const logoutAdmin = async () => {
-        await signOut(auth); setAdminModalOpen(false);
-    };
-
-    // ─── Firestore: Save / Delete Syllabus ───────────────────────
-    const saveAdminData = async () => {
-        if (!adminSemName || !adminSemSlug || !adminJson) return alert('Fill all fields!');
-        try {
-            setAdminSaving(true);
-            const item = { department: adminDept, semesterName: adminSemName, slug: adminSemSlug, fullData: JSON.parse(adminJson), updatedAt: new Date().toISOString() };
-            await setDoc(doc(db, 'pathshala_data', adminSemSlug), item);
-            alert('✅ Saved to Firebase!'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
-        } catch (e: any) {
-            if (e.message?.includes('JSON')) alert('Invalid JSON!');
-            else alert('Save failed: ' + e.message);
-        } finally { setAdminSaving(false); }
-    };
-
-    const deleteAdminData = async () => {
-        if (!adminSemSlug || !window.confirm('Delete this semester?')) return;
-        try {
-            await deleteDoc(doc(db, 'pathshala_data', adminSemSlug));
-            alert('Deleted.'); setAdminSemName(''); setAdminSemSlug(''); setAdminJson('');
-        } catch (e: any) { alert('Delete failed: ' + e.message); }
-    };
-
-    // ─── Firestore: Save / Delete Books ─────────────────────────
-    const saveBook = async () => {
-        if (!bookTitle || !bookUrl) return alert('Title and URL are required!');
-        try {
-            setAdminSaving(true);
-            const book = { title: bookTitle, category: bookCategory, url: bookUrl, cover: bookCover, department: bookDept, addedAt: new Date().toISOString() };
-            if (editBookId) {
-                await setDoc(doc(db, 'pathshala_books', editBookId), book);
-                setEditBookId(null);
-            } else {
-                await addDoc(collection(db, 'pathshala_books'), book);
-            }
-            alert('✅ Book saved!'); setBookTitle(''); setBookUrl(''); setBookCover(''); setBookCategory('Master Book');
-        } catch (e: any) {
-            alert('Save failed: ' + e.message);
-        } finally { setAdminSaving(false); }
-    };
-
-    const deleteBook = async (firestoreId: string) => {
-        if (!window.confirm('Delete this book?')) return;
-        try { await deleteDoc(doc(db, 'pathshala_books', firestoreId)); }
-        catch (e: any) { alert('Delete failed: ' + e.message); }
-    };
-
-    const editBook = (b: any) => {
-        setBookTitle(b.title); setBookUrl(b.url); setBookCover(b.cover || '');
-        setBookCategory(b.category); setBookDept(b.department || 'Computer');
-        setEditBookId(b.firestoreId); setAdminTab('books');
-    };
-
-    const handleVideoClick = (v: any, sub: any) => {
-        setActiveVideo({ id: v.id, title: v.title, channel: `${activeCourse?.semesterName} • ${sub.title}`, views: v.type.toUpperCase() + ' CLASS', publishedAt: timeAgo(v.date), thumbnail: `https://img.youtube.com/vi/${v.id}/maxresdefault.jpg` });
-    };
-
-    // ─── PDF Preview ──────────────────────────────────────────────
-    if (pdfPreview) {
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '80vh', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                    <button onClick={() => setPdfPreview(null)} style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>← Back</button>
-                    <div style={{ flex: 1 }}>
-                        <h2 style={{ color: 'white', fontSize: '1rem', fontWeight: 'bold' }}>{pdfPreview.title}</h2>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PDF Preview</div>
-                    </div>
-                    <a href={pdfPreview.url} target="_blank" rel="noopener noreferrer" style={{ padding: '0.5rem 1rem', background: 'var(--primary)', borderRadius: '8px', color: 'white', fontWeight: 'bold', fontSize: '0.875rem', textDecoration: 'none' }}>↗ Open Full</a>
-                </div>
-                <div style={{ flex: 1, borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: '#000' }}>
-                    <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfPreview.url)}&embedded=true`} style={{ width: '100%', height: '100%', border: 'none' }} title={pdfPreview.title} />
-                </div>
-            </div>
-        );
-    }
-
-    // ─── Department Selection ─────────────────────────────────────
     if (!selectedDept) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
-                {/* Firebase loading indicator */}
-                {loading && (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem', animation: 'spin 1s linear infinite' }}>🔄</div>
-                        Loading...
-                    </div>
-                )}
-                {/* Top tab: Classes or Books */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '4px' }}>
-                        <button onClick={() => setMainTab('classes')} style={{ padding: '0.5rem 1.25rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.875rem', background: mainTab === 'classes' ? 'var(--primary)' : 'transparent', color: mainTab === 'classes' ? 'white' : 'var(--text-muted)', transition: 'all 0.2s' }}>🎬 Classes</button>
-                        <button onClick={() => setMainTab('books')} style={{ padding: '0.5rem 1.25rem', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.875rem', background: mainTab === 'books' ? '#f59e0b' : 'transparent', color: mainTab === 'books' ? 'white' : 'var(--text-muted)', transition: 'all 0.2s' }}>📚 Books</button>
-                    </div>
-                    <button onClick={() => setAdminPassOpen(true)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '8px', fontWeight: 'bold' }}>Admin Control</button>
+            <div className="py-20 animate-fade-in max-w-6xl mx-auto relative z-10">
+                <div className="text-center mb-20 relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none"></div>
+                    <span className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] text-blue-400 mb-6 inline-block backdrop-blur-md">
+                        Welcome to Talukdar Pathshala
+                    </span>
+                    <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 font-siliguri tracking-tight drop-shadow-2xl">
+                        আপনার <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">ডিপার্টমেন্ট</span> বেছে নিন
+                    </h2>
+                    <p className="text-slate-400 max-w-xl mx-auto font-medium text-sm leading-relaxed">
+                        প্রিমিয়াম কোয়ালিটির ভিডিও ক্লাস, হ্যান্ড-নোটস এবং ডিজিটাল লাইব্রেরি এক্সেস পেতে আপনার ডিপার্টমেন্ট সিলেক্ট করে শুরু করুন।
+                    </p>
                 </div>
 
-                {/* ─── BOOKS VIEW ─── */}
-                {mainTab === 'books' && (
-                    <div>
-                        {/* Search + filters */}
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <input type="text" placeholder="🔍 Search books..." value={bookSearch} onChange={e => setBookSearch(e.target.value)}
-                                style={{ flex: 1, minWidth: '180px', padding: '0.5rem 1rem', borderRadius: '999px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', outline: 'none', fontSize: '0.875rem' }} />
-                        </div>
-                        <div className="tabs-container" style={{ marginBottom: '2rem', paddingBottom: '0.5rem' }}>
-                            <button className={`tab-btn ${bookCatFilter === 'all' ? 'active' : ''}`} onClick={() => setBookCatFilter('all')}>All</button>
-                            {BOOK_CATEGORIES.map(c => (
-                                <button key={c} className={`tab-btn ${bookCatFilter === c ? 'active' : ''}`} onClick={() => setBookCatFilter(c)}>{c}</button>
-                            ))}
-                        </div>
-
-                        {/* Books Grid */}
-                        {['Master Book', 'Others Book', 'Reference', 'Question Bank'].map(cat => {
-                            const booksInCat = allBooks.filter(b => b.category === cat && (bookCatFilter === 'all' || bookCatFilter === cat) && (!bookSearch || b.title.toLowerCase().includes(bookSearch.toLowerCase())));
-                            if (booksInCat.length === 0) return null;
-                            return (
-                                <div key={cat} style={{ marginBottom: '2.5rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                        <div style={{ width: 4, height: 24, background: cat === 'Master Book' ? '#f59e0b' : cat === 'Others Book' ? '#3b82f6' : cat === 'Reference' ? '#10b981' : '#8b5cf6', borderRadius: '2px' }} />
-                                        <h3 style={{ color: 'white', fontSize: '1.1rem', fontWeight: 'bold' }}>{cat}</h3>
-                                        <span style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--text-muted)', borderRadius: '999px', padding: '2px 10px', fontSize: '0.75rem' }}>{booksInCat.length}</span>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
-                                        {booksInCat.map((book, bi) => (
-                                            <div key={bi} style={{ borderRadius: '14px', overflow: 'hidden', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
-                                                onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-4px)')}
-                                                onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}>
-                                                {/* Book Cover */}
-                                                <div onClick={() => setPdfPreview({ url: book.url, title: book.title })} style={{ aspectRatio: '3/4', background: book.cover ? `url(${book.cover}) center/cover` : `linear-gradient(135deg, ${cat === 'Master Book' ? '#92400e,#f59e0b' : cat === 'Others Book' ? '#1e3a8a,#3b82f6' : cat === 'Reference' ? '#064e3b,#10b981' : '#3b0764,#8b5cf6'})`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                                                    {!book.cover && <div style={{ textAlign: 'center', padding: '1rem' }}>
-                                                        <div style={{ fontSize: '2.5rem' }}>📖</div>
-                                                        <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '0.5rem', lineHeight: 1.3 }}>{book.title.substring(0, 40)}</div>
-                                                    </div>}
-                                                    <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', background: cat === 'Master Book' ? '#f59e0b' : cat === 'Others Book' ? '#3b82f6' : cat === 'Reference' ? '#10b981' : '#8b5cf6', color: 'white', fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px' }}>
-                                                        {cat === 'Master Book' ? '⭐ MASTER' : cat === 'Others Book' ? '📘 BOOK' : cat === 'Reference' ? '🔖 REF' : '❓ QB'}
-                                                    </div>
-                                                </div>
-                                                {/* Book Info */}
-                                                <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                    <div style={{ color: 'white', fontWeight: '600', fontSize: '0.8rem', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{book.title}</div>
-                                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{book.department}</div>
-                                                    <button onClick={() => setPdfPreview({ url: book.url, title: book.title })}
-                                                        style={{ marginTop: 'auto', padding: '0.4rem', borderRadius: '6px', background: 'var(--primary)', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.7rem' }}>
-                                                        👁 Preview
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                <motion.div 
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                        hidden: { opacity: 0 },
+                        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+                    }}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+                >
+                    {departments.map((dept, idx) => (
+                        <motion.button 
+                            key={dept} 
+                            variants={{
+                                hidden: { opacity: 0, y: 20 },
+                                visible: { opacity: 1, y: 0 }
+                            }}
+                            onClick={() => setSelectedDept(dept)} 
+                            className={`relative group p-10 rounded-[2.5rem] bg-gradient-to-br ${deptColors[dept] || 'from-white/[0.05] to-transparent border-white/10 text-white'} border backdrop-blur-2xl transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(59,130,246,0.3)] text-left overflow-hidden`}
+                        >
+                            <div className="absolute inset-0 bg-white/[0.01] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                            <div className="absolute top-0 right-0 p-12 bg-white/10 blur-[50px] rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700 transform group-hover:scale-150"></div>
+                            
+                            <div className="relative z-10">
+                                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-8 group-hover:bg-white/10 group-hover:scale-110 transition-all duration-500 shadow-xl">
+                                    <span className="text-3xl drop-shadow-md">
+                                        {deptIcons[dept] || '🎓'}
+                                    </span>
                                 </div>
-                            );
-                        })}
-
-                        {allBooks.filter(b => (bookCatFilter === 'all' || bookCatFilter === b.category) && (!bookSearch || b.title.toLowerCase().includes(bookSearch.toLowerCase()))).length === 0 && (
-                            <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
-                                <div style={{ fontSize: '4rem' }}>📚</div>
-                                <h3 style={{ marginTop: '1rem' }}>No Books Added Yet</h3>
-                                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>Admin can add books from the Admin Control panel.</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* ─── CLASSES VIEW (Department Grid) ─── */}
-                {mainTab === 'classes' && (
-                    departments.length === 0 ? (
-                        <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
-                            <div style={{ fontSize: '4rem' }}>📚</div>
-                            <h3>No Course Data Available</h3>
-                            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>Login as Admin to upload syllabus JSON files.</p>
-                        </div>
-                    ) : (
-                        <div className="video-grid">
-                            {departments.map(d => (
-                                <div key={d} className="video-card glass-panel" style={{ padding: '2rem', textAlign: 'center' }} onClick={() => setSelectedDept(d)}>
-                                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📂</div>
-                                    <h3 style={{ fontSize: '1.25rem', color: 'white' }}>{d} Department</h3>
-                                    <div style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold' }}>EXPLORE SEMESTERS</div>
-                                </div>
-                            ))}
-                        </div>
-                    )
-                )}
-
-                {/* ─── Admin Login Modal (Firebase Email/Password) ─── */}
-                {adminPassOpen && (
-                    <div className="download-modal-overlay active" style={{ zIndex: 3000 }}>
-                        <div className="download-modal glass-panel" style={{ width: '90%', maxWidth: '400px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
-                            <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Admin Login</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Sign in with your Firebase account</p>
-                            <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && verifyAdmin()}
-                                style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', outline: 'none', marginBottom: '0.75rem', fontSize: '0.95rem' }}
-                                placeholder="Admin Email" />
-                            <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && verifyAdmin()}
-                                style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', outline: 'none', marginBottom: '0.75rem', fontSize: '0.95rem' }}
-                                placeholder="Password" />
-                            {adminLoginError && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>⚠️ {adminLoginError}</div>}
-                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                <button className="btn" style={{ flex: 1, minWidth: '120px', background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => { setAdminPassOpen(false); setAdminLoginError(''); }}>Cancel</button>
-                                <button className="btn btn-primary" style={{ flex: 1, minWidth: '120px' }} onClick={verifyAdmin} disabled={adminLoginLoading}>
-                                    {adminLoginLoading ? '...' : 'Login'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ─── Admin Panel Modal ─── */}
-                {adminModalOpen && (
-                    <div className="download-modal-overlay active" style={{ zIndex: 3000 }}>
-                        <div className="download-modal glass-panel admin-panel-modal" style={{ maxWidth: '1000px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                                <div>
-                                    <h2 style={{ color: 'white', fontSize: '1.3rem' }}>Study Control Center</h2>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Logged in as: {adminUser?.email}</p>
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <button className="btn" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: '1px solid #ef444444' }} onClick={logoutAdmin}>Logout</button>
-                                    <button className="btn" style={{ background: 'transparent', color: 'white' }} onClick={() => setAdminModalOpen(false)}>✕ Close</button>
+                                <h3 className="text-2xl font-bold mb-2 tracking-tight group-hover:text-white transition-colors">{dept}</h3>
+                                <div className="flex items-center gap-2 mt-6">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity text-white">Explore Department</span>
+                                    <span className="opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0 text-white">→</span>
                                 </div>
                             </div>
-
-                            {/* Admin Sub-tabs */}
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '4px', width: 'fit-content', flexWrap: 'wrap' }}>
-                                <button onClick={() => setAdminTab('syllabus')} style={{ padding: '0.4rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', background: adminTab === 'syllabus' ? 'var(--primary)' : 'transparent', color: adminTab === 'syllabus' ? 'white' : 'var(--text-muted)' }}>📋 Syllabus</button>
-                                <button onClick={() => setAdminTab('books')} style={{ padding: '0.4rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', background: adminTab === 'books' ? '#f59e0b' : 'transparent', color: adminTab === 'books' ? 'white' : 'var(--text-muted)' }}>📚 Books</button>
-                                <button onClick={() => setAdminTab('security')} style={{ padding: '0.4rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', background: adminTab === 'security' ? '#ef4444' : 'transparent', color: adminTab === 'security' ? 'white' : 'var(--text-muted)' }}>🔒 Security</button>
-                            </div>
-
-                            {/* Syllabus Admin */}
-                            {adminTab === 'syllabus' && (
-                                <div className="admin-layout">
-                                    <div className="admin-sidebar">
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                            <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Saved</h3>
-                                            <button className="btn" style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6', border: '1px solid #3b82f6', padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={() => { setAdminSemName(''); setAdminSemSlug(''); setAdminJson(''); }}>+ New</button>
-                                        </div>
-                                        {allData.map(d => (
-                                            <div key={d.slug} onClick={() => { setAdminSemName(d.semesterName); setAdminSemSlug(d.slug); setAdminDept(d.department); setAdminJson(JSON.stringify(d.fullData, null, 2)); }}
-                                                style={{ padding: '0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', cursor: 'pointer', marginBottom: '0.4rem', border: '1px solid transparent', transition: 'all 0.2s' }}
-                                                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
-                                                <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.8rem' }}>{d.semesterName}</div>
-                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', textTransform: 'uppercase' }}>{d.department}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="admin-content">
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Department</label>
-                                                <select value={adminDept} onChange={e => setAdminDept(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}>
-                                                    <option>Computer</option><option>Civil</option><option>Electrical</option><option>Electronics</option><option>Mechanical</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Semester Name</label>
-                                                <input type="text" value={adminSemName} onChange={e => setAdminSemName(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="e.g. 2nd Semester" />
-                                            </div>
-                                            <div style={{ gridColumn: '1/-1' }}>
-                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Unique Slug</label>
-                                                <input type="text" value={adminSemSlug} onChange={e => setAdminSemSlug(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="e.g. computer-2nd" />
-                                            </div>
-                                        </div>
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>API JSON DATA</label>
-                                            <textarea value={adminJson} onChange={e => setAdminJson(e.target.value)} style={{ width: '100%', height: '220px', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: '#34d399', outline: 'none', fontFamily: 'monospace', fontSize: '0.72rem' }} placeholder="Paste Pathshala JSON here..." />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                            {adminSemSlug && <button className="btn" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: '1px solid #ef4444', flex: 1, minWidth: '120px' }} onClick={deleteAdminData}>Delete</button>}
-                                            <button className="btn btn-primary" style={{ flex: 1, minWidth: '120px' }} onClick={saveAdminData}>Publish & Save</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Books Admin */}
-                            {adminTab === 'books' && (
-                                <div className="admin-layout">
-                                    {/* Saved books list */}
-                                    <div className="admin-sidebar">
-                                        <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Saved Books ({allBooks.length})</h3>
-                                        {allBooks.map((b) => (
-                                            <div key={b.firestoreId} style={{ padding: '0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '0.4rem', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                                                <div style={{ overflow: 'hidden' }}>
-                                                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
-                                                    <div style={{ color: '#f59e0b', fontSize: '0.62rem', fontWeight: 'bold' }}>{b.category}</div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
-                                                    <button onClick={() => editBook(b)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(59,130,246,0.2)', color: '#3b82f6', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✎</button>
-                                                    <button onClick={() => deleteBook(b.firestoreId)} style={{ padding: '0.2rem 0.4rem', borderRadius: '5px', background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>✕</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Add/Edit Book Form */}
-                                    <div className="admin-content">
-                                        <h3 style={{ color: 'white', fontWeight: 'bold', marginBottom: '1rem', fontSize: '1rem' }}>{editBookId ? '✎ Edit Book' : '+ Add New Book'}</h3>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Category</label>
-                                                <select value={bookCategory} onChange={e => setBookCategory(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}>
-                                                    {BOOK_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Department</label>
-                                                <select value={bookDept} onChange={e => setBookDept(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}>
-                                                    <option>Computer</option><option>Civil</option><option>Electrical</option><option>Electronics</option><option>Mechanical</option><option>All</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Book Title *</label>
-                                            <input type="text" value={bookTitle} onChange={e => setBookTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="e.g. Engineering Mathematics Vol. 1" />
-                                        </div>
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>PDF URL * <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Google Drive / Direct link)</span></label>
-                                            <input type="text" value={bookUrl} onChange={e => setBookUrl(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="https://drive.google.com/..." />
-                                        </div>
-                                        <div style={{ marginBottom: '1.5rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem' }}>Cover Image URL <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(optional)</span></label>
-                                            <input type="text" value={bookCover} onChange={e => setBookCover(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} placeholder="https://..." />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                            {editBookId && <button className="btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', flex: 1, minWidth: '100px' }} onClick={() => { setEditBookId(null); setBookTitle(''); setBookUrl(''); setBookCover(''); }}>Cancel</button>}
-                                            <button className="btn" style={{ background: bookCategory === 'Master Book' ? '#f59e0b' : 'var(--primary)', color: 'white', flex: 2, minWidth: '140px', border: 'none', opacity: adminSaving ? 0.7 : 1 }} onClick={saveBook} disabled={adminSaving}>
-                                                {adminSaving ? 'Saving...' : editBookId ? '✓ Update Book' : '+ Save Book'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* 🔒 Security Tab — Firebase Password Change */}
-                            {adminTab === 'security' && (
-                                <div style={{ maxWidth: '420px', margin: '0 auto' }}>
-                                    <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '16px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                                            <div style={{ fontSize: '2rem' }}>🔑</div>
-                                            <div>
-                                                <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>Change Firebase Password</div>
-                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Updates your Firebase Auth password</div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New Password</label>
-                                            <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)}
-                                                style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', fontSize: '1rem' }}
-                                                placeholder="Enter new password (min 6 chars)" />
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirm New Password</label>
-                                            <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
-                                                style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(0,0,0,0.4)', border: `1px solid ${confirmPass && newPass && confirmPass !== newPass ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, color: 'white', outline: 'none', fontSize: '1rem' }}
-                                                placeholder="Re-enter new password" />
-                                            {confirmPass && newPass && confirmPass !== newPass && (
-                                                <div style={{ color: '#ef4444', fontSize: '0.72rem', marginTop: '0.4rem' }}>⚠ Passwords do not match</div>
-                                            )}
-                                        </div>
-
-                                        <button
-                                            disabled={passChangeLoading}
-                                            onClick={async () => {
-                                                if (!newPass || !confirmPass) return alert('Please fill all fields!');
-                                                if (newPass.length < 6) return alert('Password must be at least 6 characters!');
-                                                if (newPass !== confirmPass) return alert('❌ New passwords do not match!');
-                                                if (!adminUser) return alert('Not logged in!');
-                                                setPassChangeLoading(true);
-                                                try {
-                                                    await updatePassword(adminUser, newPass);
-                                                    alert('✅ Password changed successfully! Please log in again.');
-                                                    setNewPass(''); setConfirmPass('');
-                                                    await signOut(auth); setAdminModalOpen(false);
-                                                } catch (e: any) {
-                                                    alert('❌ Failed: ' + (e.message?.includes('requires-recent-login') ? 'Please log out and log in again first.' : e.message));
-                                                } finally { setPassChangeLoading(false); }
-                                            }}
-                                            style={{ width: '100%', padding: '0.85rem', borderRadius: '10px', background: passChangeLoading ? '#666' : 'linear-gradient(135deg, #ef4444, #b91c1c)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.95rem', transition: 'all 0.2s' }}
-                                        >
-                                            {passChangeLoading ? 'Updating...' : '🔐 Update Firebase Password'}
-                                        </button>
-
-                                        <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '10px', padding: '1rem', fontSize: '0.75rem', color: '#93c5fd', lineHeight: 1.6 }}>
-                                            ℹ️ This updates your <strong>Firebase Authentication</strong> password used to log in to the Admin Panel.
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    }
-
-    // ─── Semester Selection ───────────────────────────────────────
-    if (!selectedSemester) {
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
-                <h2 style={{ fontSize: '1.5rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                    <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => setSelectedDept(null)}>Departments</span>
-                    <span style={{ color: 'var(--text-muted)' }}>/</span>
-                    <span>Select <span style={{ color: 'var(--primary)' }}>Semester</span></span>
-                </h2>
-                <div className="video-grid">
-                    {semesters.map(s => (
-                        <div key={s.slug} className="video-card glass-panel" style={{ padding: '2rem', textAlign: 'center' }} onClick={() => setSelectedSemester(s.slug)}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📘</div>
-                            <h3 style={{ fontSize: '1.25rem', color: 'white' }}>{s.semesterName}</h3>
-                            <div style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold' }}>{s.department} DEPT.</div>
-                        </div>
+                        </motion.button>
                     ))}
-                </div>
+                </motion.div>
             </div>
         );
     }
 
-    // ─── Class Dashboard ──────────────────────────────────────────
-    // All attached PDFs (from videos' notes) + standalone PDFs from JSON
-    const allAttachedPdfs = [
-        // PDFs attached to videos as notes
-        ...parsedSubjects.flatMap(sub =>
-            sub.classes.flatMap(v => (v.notes || []).filter((n: any) => !n.isLink).map((n: any) => ({ ...n, classTitle: v.title, subTitle: sub.title })))
-        ),
-        // Standalone PDFs (no parent video) from JSON — show with their section name
-        ...standalonePdfs.map(p => ({ ...p, classTitle: p.sectionTitle, subTitle: p.sectionTitle }))
-    ];
+    if (!selectedCourse) {
+        return (
+            <div className="animate-fade-in max-w-6xl mx-auto py-10 relative z-10">
+                <button onClick={() => setSelectedDept(null)} className="mb-12 group flex items-center gap-3 text-slate-500 hover:text-white transition-all w-fit">
+                    <span className="w-8 h-8 flex items-center justify-center bg-white/5 border border-white/10 rounded-full group-hover:bg-white/10 transition-colors shadow-lg">←</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Back to Departments</span>
+                </button>
+                
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-16 relative">
+                    <div className="absolute -top-10 left-0 w-32 h-32 bg-blue-500/10 blur-[50px] rounded-full pointer-events-none"></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-3xl">{deptIcons[selectedDept]}</span>
+                            <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest text-slate-300">
+                                {filteredCourses.length} Courses Available
+                            </span>
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-bold text-white mb-2 font-siliguri tracking-tight">{selectedDept}</h2>
+                        <p className="text-slate-400 text-sm">নিচের লিস্ট থেকে আপনার বর্তমান সেমিস্টার বা কোর্সটি সিলেক্ট করুন।</p>
+                    </div>
+                </div>
 
-    // Show ALL books (no department restriction so nothing is missed)
-    const masterBooks = allBooks.filter(b => b.category === 'Master Book');
-
-    const isBookTab = activeFilter === '__master__' || activeFilter === '__allpdfs__';
-    const filteredClasses = !isBookTab ? parsedSubjects
-        .filter(sub => activeFilter === 'all' || activeFilter === sub.id)
-        .flatMap(sub => sub.classes.filter(v => !localSearch || v.title.toLowerCase().includes(localSearch.toLowerCase())).map(v => ({ ...v, subTitle: sub.title }))) : [];
-
-    // PDF rows for "All PDFs" tab — JSON PDFs + admin-added books
-    const allPdfItems = activeFilter === '__allpdfs__'
-        ? [
-            ...allAttachedPdfs.filter(p => !localSearch || p.title.toLowerCase().includes(localSearch.toLowerCase())),
-            ...allBooks.filter(b => !localSearch || b.title.toLowerCase().includes(localSearch.toLowerCase())).map(b => ({ title: b.title, url: b.url, classTitle: b.category, subTitle: b.department, isBook: true, category: b.category }))
-        ]
-        : activeFilter === '__master__'
-            // Master Book tab: show admin-added Master Books + standalone PDFs named "All Book"
-            ? [
-                ...masterBooks.filter(b => !localSearch || b.title.toLowerCase().includes(localSearch.toLowerCase())).map(b => ({ title: b.title, url: b.url, classTitle: b.category, subTitle: b.department, isBook: true, category: b.category })),
-                ...standalonePdfs.filter(p => !localSearch || p.title.toLowerCase().includes(localSearch.toLowerCase())).map(p => ({ title: p.title, url: p.url, classTitle: p.sectionTitle, subTitle: p.sectionTitle, isBook: false, category: 'PDF' }))
-            ]
-            : [];
-
-
-    const catColor = (cat: string) => cat === 'Master Book' ? '#f59e0b' : cat === 'Others Book' ? '#3b82f6' : cat === 'Reference' ? '#10b981' : '#8b5cf6';
+                <motion.div 
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                        hidden: { opacity: 0 },
+                        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+                    }}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                >
+                    {filteredCourses.map((course) => (
+                        <motion.button 
+                            key={course.firestoreId} 
+                            variants={{
+                                hidden: { opacity: 0, x: -20 },
+                                visible: { opacity: 1, x: 0 }
+                            }}
+                            onClick={() => setSelectedCourse(course.firestoreId)} 
+                            className="relative group p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:bg-white/[0.05] hover:border-blue-500/30 transition-all duration-300 text-left overflow-hidden shadow-lg hover:shadow-blue-500/5"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                            
+                            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-white group-hover:text-blue-400 transition-colors mb-3 tracking-tight">{course.semesterName}</h3>
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                                            Updated: {new Date(course.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:border-blue-500 transition-all duration-300 text-white shadow-xl transform group-hover:translate-x-2 group-hover:scale-110">
+                                    →
+                                </div>
+                            </div>
+                        </motion.button>
+                    ))}
+                </motion.div>
+            </div>
+        );
+    }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
-            {/* Breadcrumb + Search */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <h2 style={{ fontSize: '1.1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => { setSelectedDept(null); setSelectedSemester(null); }}>Library</span>
-                    <span style={{ color: 'var(--text-muted)' }}>/</span>
-                    <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => setSelectedSemester(null)}>{selectedDept}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>/</span>
-                    <span style={{ color: 'var(--primary)' }}>{activeCourse?.semesterName}</span>
-                </h2>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <input type="text" placeholder="🔍 Search..." value={localSearch} onChange={e => setLocalSearch(e.target.value)}
-                        style={{ padding: '0.5rem 1rem', borderRadius: '999px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', outline: 'none', fontSize: '0.875rem', minWidth: '160px' }} />
-                    <div style={{ background: 'rgba(59,130,246,0.1)', padding: '0.4rem 0.9rem', borderRadius: '999px', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                        👤 {activeCourse?.fullData?.users_count?.toLocaleString()} Students
+        <div className="animate-fade-in max-w-7xl mx-auto">
+            {/* Ultra-Modern Floating Command Center */}
+            <div className="relative mb-12 z-20 animate-fade-in">
+                {/* Outer Glow */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-indigo-500/10 to-blue-600/10 blur-2xl rounded-[3rem] pointer-events-none"></div>
+                
+                {/* Main Bar */}
+                <div className="relative bg-[#0a0f1c]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-3 flex flex-col md:flex-row items-center gap-4 shadow-2xl">
+                    
+                    {/* Left: Back & Search */}
+                    <div className="flex items-center gap-3 w-full md:w-auto md:flex-1">
+                        <button 
+                            onClick={() => setSelectedCourse(null)} 
+                            className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white/5 hover:bg-white/10 hover:shadow-lg border border-white/10 rounded-full text-slate-300 hover:text-white transition-all active:scale-95"
+                        >
+                            <span className="text-xl">←</span>
+                        </button>
+                        <div className="relative w-full max-w-sm">
+                            <input 
+                                type="text" 
+                                placeholder="Search classes, topics..." 
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-12 pr-6 py-3.5 bg-black/40 border border-white/5 focus:border-blue-500/50 rounded-full text-sm text-white outline-none transition-all shadow-inner placeholder:text-slate-600"
+                            />
+                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 text-lg">🔍</span>
+                        </div>
+                    </div>
+
+                    {/* Center: Main Tabs (Segmented Control) */}
+                    <div className="flex items-center p-1.5 bg-black/50 border border-white/5 rounded-full w-full sm:w-auto shadow-inner flex-shrink-0">
+                        <button 
+                            onClick={() => setMainTab('classes')} 
+                            className={`flex-1 sm:w-40 py-2.5 rounded-full font-bold text-[10px] sm:text-xs transition-all duration-500 uppercase tracking-widest flex items-center justify-center gap-2 ${mainTab === 'classes' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-100' : 'text-slate-400 hover:text-white hover:bg-white/5 scale-95'}`}
+                        >
+                            <span className="text-base">🎬</span> Classes
+                        </button>
+                        <button 
+                            onClick={() => setMainTab('books')} 
+                            className={`flex-1 sm:w-40 py-2.5 rounded-full font-bold text-[10px] sm:text-xs transition-all duration-500 uppercase tracking-widest flex items-center justify-center gap-2 ${mainTab === 'books' ? 'bg-amber-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.5)] scale-100' : 'text-slate-400 hover:text-white hover:bg-white/5 scale-95'}`}
+                        >
+                            <span className="text-base">📚</span> Library
+                        </button>
+                    </div>
+
+                    {/* Right: Info Area (Hidden on small screens) */}
+                    <div className="hidden lg:flex flex-1 justify-end items-center pr-4">
+                        <div className="text-right">
+                            <h3 className="text-sm font-bold text-white tracking-tight leading-none mb-1.5">{activeCourse?.semesterName}</h3>
+                            <div className="flex items-center justify-end gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
+                                <span className="text-[9px] text-blue-400 font-bold uppercase tracking-[0.2em]">
+                                    {mainTab === 'classes' ? `${filteredSections.reduce((acc, s) => acc + s.classes.length, 0)} Total Classes` : 'Digital Resources'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+                {/* Bottom: Subject Filter Pills (Futuristic Slider) */}
+                {mainTab === 'classes' && (
+                    <div className="mt-8 relative group/slider">
+                        {/* Navigation Arrows for PC */}
+                        <button 
+                            onClick={() => {
+                                const el = document.getElementById('subject-slider');
+                                if (el) el.scrollBy({ left: -300, behavior: 'smooth' });
+                            }}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 bg-[#0a0f1c]/80 backdrop-blur-xl border border-white/10 rounded-full items-center justify-center text-white hidden md:flex opacity-0 group-hover/slider:opacity-100 transition-all hover:bg-blue-600 hover:border-blue-500 shadow-2xl"
+                        >
+                            ←
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const el = document.getElementById('subject-slider');
+                                if (el) el.scrollBy({ left: 300, behavior: 'smooth' });
+                            }}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 bg-[#0a0f1c]/80 backdrop-blur-xl border border-white/10 rounded-full items-center justify-center text-white hidden md:flex opacity-0 group-hover/slider:opacity-100 transition-all hover:bg-blue-600 hover:border-blue-500 shadow-2xl"
+                        >
+                            →
+                        </button>
 
-            {/* Subject + Book Filters in ONE scrollable tab bar */}
-            <div className="tabs-container" style={{ marginBottom: '2rem', paddingBottom: '0.5rem' }}>
-                <button className={`tab-btn ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All Subjects</button>
-                {parsedSubjects.map(sub => (
-                    <button key={sub.id} className={`tab-btn ${activeFilter === sub.id ? 'active' : ''}`} onClick={() => setActiveFilter(sub.id)}>{sub.title}</button>
-                ))}
-                {/* Divider */}
-                <div style={{ width: '1px', background: 'rgba(255,255,255,0.15)', margin: '0 0.25rem', alignSelf: 'stretch' }} />
-                {/* Book tabs */}
-                <button
-                    onClick={() => setActiveFilter('__master__')}
-                    style={{ padding: '0.75rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap', transition: 'all 0.2s', fontSize: '0.875rem', borderBottom: `2px solid ${activeFilter === '__master__' ? '#f59e0b' : 'transparent'}`, color: activeFilter === '__master__' ? '#f59e0b' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                    ⭐ Master Book
-                    {masterBooks.length > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '1px 7px', fontSize: '0.65rem', fontWeight: 'bold' }}>{masterBooks.length}</span>}
-                </button>
-                <button
-                    onClick={() => setActiveFilter('__allpdfs__')}
-                    style={{ padding: '0.75rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap', transition: 'all 0.2s', fontSize: '0.875rem', borderBottom: `2px solid ${activeFilter === '__allpdfs__' ? '#a78bfa' : 'transparent'}`, color: activeFilter === '__allpdfs__' ? '#a78bfa' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                    📄 All PDFs
-                    {(allAttachedPdfs.length + allBooks.length) > 0 && <span style={{ background: '#8b5cf6', color: 'white', borderRadius: '999px', padding: '1px 7px', fontSize: '0.65rem', fontWeight: 'bold' }}>{allAttachedPdfs.length + allBooks.length}</span>}
-                </button>
-            </div>
-
-            {/* ─── PDF / BOOK LIST VIEW (Master Book or All PDFs tab) ─── */}
-            {isBookTab && (
-                <div>
-                    {allPdfItems.length === 0 ? (
-                        <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
-                            <div style={{ fontSize: '3rem' }}>📚</div>
-                            <h3 style={{ marginTop: '1rem' }}>No {activeFilter === '__master__' ? 'Master Books' : 'PDFs'} found.</h3>
-                            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>Admin can add books from the Admin Control panel.</p>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            {allPdfItems.map((item, i) => (
-                                <button key={i} onClick={() => setPdfPreview({ url: item.url, title: item.title })}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.2s' }}
-                                    onMouseEnter={e => { e.currentTarget.style.borderColor = item.isBook ? catColor((item as any).category || '') : 'rgba(245,158,11,0.5)'; e.currentTarget.style.transform = 'translateX(4px)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.transform = 'translateX(0)'; }}
+                        {/* Futuristic Edge Masking */}
+                        <div id="subject-slider" className="mask-edge-fade overflow-x-auto no-scrollbar pb-4 px-4 flex items-center gap-4 scroll-smooth">
+                            <button 
+                                onClick={() => setActiveFilter('all')}
+                                className={`flex-shrink-0 px-7 py-3.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-500 border ${activeFilter === 'all' ? 'bg-white text-black border-white shadow-[0_0_25px_rgba(255,255,255,0.4)] scale-105' : 'bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/30 hover:text-white hover:bg-white/10'}`}
+                            >
+                                All Subjects
+                            </button>
+                            {parsedSubjects.map(s => (
+                                <button 
+                                    key={s.id}
+                                    onClick={() => setActiveFilter(s.id)}
+                                    className={`flex-shrink-0 flex items-center gap-3 px-7 py-3.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-500 border ${activeFilter === s.id ? 'bg-blue-500/20 text-blue-300 border-blue-400 shadow-[0_0_25px_rgba(59,130,246,0.3)] scale-105' : 'bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/30 hover:text-white hover:bg-white/10'}`}
                                 >
-                                    {/* Icon */}
-                                    <div style={{
-                                        width: 48, height: 48, borderRadius: '12px', flexShrink: 0,
-                                        background: item.isBook
-                                            ? `linear-gradient(135deg, ${catColor((item as any).category || '')}, ${catColor((item as any).category || '')}aa)`
-                                            : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem',
-                                        boxShadow: `0 4px 12px ${item.isBook ? catColor((item as any).category || '') : '#f59e0b'}33`
-                                    }}>
-                                        {item.isBook ? '📖' : '📄'}
-                                    </div>
-                                    {/* Info */}
-                                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                                        <div style={{ color: 'white', fontWeight: '700', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: '2px', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                            <span>{item.subTitle}</span>
-                                            {item.isBook && <span style={{ background: catColor((item as any).category || '') + '33', color: catColor((item as any).category || ''), borderRadius: '4px', padding: '1px 6px', fontSize: '0.62rem', fontWeight: 'bold' }}>{(item as any).category}</span>}
-                                            {!item.isBook && <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: '4px', padding: '1px 6px', fontSize: '0.62rem', fontWeight: 'bold' }}>📎 NOTE · {item.classTitle}</span>}
-                                            {(item as any).date && <span style={{ color: 'var(--text-muted)', fontSize: '0.62rem' }}>📅 {timeAgo((item as any).date)}</span>}
-                                        </div>
-                                    </div>
-                                    {/* Action */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                        <a href={item.url} target="_blank" rel="noopener noreferrer"
-                                            onClick={e => e.stopPropagation()}
-                                            style={{ padding: '0.35rem 0.75rem', borderRadius: '7px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--text-muted)', fontSize: '0.72rem', textDecoration: 'none', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                            ↗ Open
-                                        </a>
-                                        <div style={{ color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 'bold' }}>›</div>
-                                    </div>
+                                    <div className={`w-2.5 h-2.5 rounded-full transition-all duration-700 ${activeFilter === s.id ? 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,1)]' : 'bg-slate-700'}`}></div>
+                                    {s.title}
                                 </button>
                             ))}
                         </div>
-                    )}
-                </div>
-            )}
-
-            {/* ─── CLASS CARDS VIEW ─── */}
-            {!isBookTab && (
-                <>
-                    <div className="video-grid">
-                        {filteredClasses.map((v, idx) => (
-                            <div key={v.id + idx} className="video-card glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-                                <div className="video-thumbnail-container" onClick={() => handleVideoClick(v, { title: v.subTitle })} style={{ cursor: 'pointer' }}>
-                                    <img
-                                        src={`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`}
-                                        alt={v.title}
-                                        className="video-thumbnail"
-                                        loading={idx < 6 ? "eager" : "lazy"}
-                                        decoding="async"
-                                        fetchPriority={idx < 2 ? "high" : "auto"}
-                                    />
-                                    <span className="video-duration" style={{ background: v.type === 'live' ? 'rgba(239,68,68,0.9)' : 'rgba(59,130,246,0.9)' }}>{v.type.toUpperCase()}</span>
-                                </div>
-                                <div className="video-info" style={{ flex: 1, cursor: 'pointer' }} onClick={() => handleVideoClick(v, { title: v.subTitle })}>
-                                    <h3 className="video-title text-white">{v.title}</h3>
-                                    <div className="video-channel"><span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>✓</span> {v.subTitle}</div>
-                                    <div className="video-meta" style={{ marginTop: 'auto' }}>{timeAgo(v.date)}</div>
-                                </div>
-                                {/* Attached Notes */}
-                                {v.notes && v.notes.length > 0 && (
-                                    <div style={{ padding: '0 1rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.2rem' }}>📎 Notes ({v.notes.length})</div>
-                                        {v.notes.map((note: any, ni: number) => (
-                                            <button key={ni} onClick={() => setPdfPreview({ url: note.url, title: note.title })}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.75rem', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.06))', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.2s' }}
-                                                onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(251,191,36,0.15))'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.6)'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.06))'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.3)'; }}>
-                                                <div style={{ width: 30, height: 30, borderRadius: '6px', flexShrink: 0, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>📄</div>
-                                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                                    <div style={{ color: '#fcd34d', fontWeight: '600', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{note.title}</div>
-                                                    <div style={{ color: 'rgba(253,211,77,0.55)', fontSize: '0.62rem', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                                                        <span>📅 {timeAgo(note.date)}</span>
-                                                        <span>· Tap to preview</span>
-                                                    </div>
-                                                </div>
-                                                <span style={{ color: '#f59e0b', fontSize: '1rem', flexShrink: 0 }}>›</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
                     </div>
-                    {filteredClasses.length === 0 && (
-                        <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
-                            <div style={{ fontSize: '3rem' }}>🔍</div>
-                            <h3 style={{ marginTop: '1rem' }}>No classes found.</h3>
-                        </div>
-                    )}
-                </>
+                )}
+            </div>
+
+            {mainTab === 'books' ? (
+                <div className="animate-fade-in">
+                    {/* Aggregated Global Library from allData + allBooks */}
+                    {(() => {
+                        const allParsedPdfs: any[] = [];
+                        
+                        // Scan through all courses in allData to find standalone PDFs
+                        allData.forEach(course => {
+                            if (course.fullData?.sections) {
+                                course.fullData.sections.forEach((s: any) => {
+                                    const sectionName = s.title || 'General';
+                                    if (s.contents) {
+                                        s.contents.forEach((c: any) => {
+                                            if (c.type === 'pdf') {
+                                                const pdfLink = c.resource?.resourceable?.link || c.resource?.resourceable?.file_url || c.resource?.resourceable?.url || c.resource?.link || '';
+                                                if (pdfLink) {
+                                                    // Check if it's already in classes to avoid duplicates, but usually standalone are better for books
+                                                    allParsedPdfs.push({
+                                                        title: c.title,
+                                                        url: pdfLink,
+                                                        category: sectionName || course.semesterName || 'Course Material',
+                                                        dept: course.department
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        });
+
+                        const combinedBooks = [
+                            ...allBooks.map(b => ({ ...b, isMaster: b.title.toLowerCase().includes('master') })), 
+                            ...allParsedPdfs.map(p => ({
+                                ...p,
+                                isMaster: p.title.toLowerCase().includes('master') || p.category.toLowerCase().includes('master')
+                            }))
+                        ];
+
+                        // Deduplicate by URL
+                        const uniqueBooks = Array.from(new Map(combinedBooks.map(item => [item.url, item])).values());
+                        
+                        // Sort: Masters first, then by department matching, then others
+                        const sortedBooks = uniqueBooks.sort((a: any, b: any) => {
+                            if (a.isMaster && !b.isMaster) return -1;
+                            if (!a.isMaster && b.isMaster) return 1;
+                            if (a.dept === selectedDept && b.dept !== selectedDept) return -1;
+                            if (a.dept !== selectedDept && b.dept === selectedDept) return 1;
+                            return 0;
+                        });
+
+                        return sortedBooks.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {sortedBooks.map((book: any, i: number) => (
+                                    <motion.a 
+                                        key={i} 
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: i * 0.05 }}
+                                        href={book.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className={`relative p-8 bg-white/[0.03] border ${book.isMaster ? 'border-blue-500/40 shadow-blue-500/10' : 'border-white/10'} rounded-[2.5rem] hover:bg-white/[0.06] transition-all group cursor-pointer overflow-hidden shadow-xl`}
+                                    >
+                                        <div className={`absolute top-0 right-0 p-8 ${book.isMaster ? 'bg-blue-500/20' : 'bg-amber-500/10'} blur-[30px] rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                                        
+                                        {book.isMaster && (
+                                            <div className="absolute top-6 right-6 px-4 py-1.5 bg-blue-600 text-[9px] font-bold uppercase tracking-widest rounded-full text-white shadow-xl animate-pulse">
+                                                Master Book
+                                            </div>
+                                        )}
+
+                                        <div className={`w-14 h-14 ${book.isMaster ? 'bg-blue-500/10' : 'bg-amber-500/10'} rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform`}>
+                                            {book.isMaster ? '👑' : '📚'}
+                                        </div>
+                                        <h4 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors mb-3 tracking-tight">{book.title}</h4>
+                                        <div className="flex flex-wrap gap-2 mb-8">
+                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{book.category}</span>
+                                            {book.dept && <span className="text-[10px] text-blue-500/60 font-bold uppercase tracking-widest">• {book.dept}</span>}
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className={`px-5 py-2.5 ${book.isMaster ? 'bg-blue-600' : 'bg-amber-500'} text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg transition-all`}>
+                                                View / Download
+                                            </div>
+                                            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Premium Access</span>
+                                        </div>
+                                    </motion.a>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-20 text-center flex flex-col items-center gap-6 bg-white/[0.02] border border-dashed border-white/10 rounded-[3rem]">
+                                <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center text-4xl animate-pulse">📖</div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">ডিজিটাল লাইব্রেরি</h3>
+                                    <p className="text-slate-500 max-w-xs mx-auto">বর্তমানে কোনো বই বা পিডিএফ আপলোড করা হয়নি। খুব শীঘ্রই এখানে আপনার প্রয়োজনীয় বইগুলো যুক্ত করা হবে।</p>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            ) : (
+                <div className="flex flex-col gap-16">
+                    {filteredSections.map((section, sIdx) => (
+                        <motion.div 
+                            key={section.id}
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: sIdx * 0.1 }}
+                            className="flex flex-col gap-8"
+                        >
+                            {/* Section Header */}
+                            <div className="flex items-center justify-between border-b border-white/5 pb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-2 h-8 bg-blue-600 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
+                                    <h3 className="text-2xl font-bold text-white tracking-tight">{section.title}</h3>
+                                </div>
+                                <span className="px-4 py-2 bg-white/5 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                                    {section.classes.length} Classes
+                                </span>
+                            </div>
+
+                            {/* Classes Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                                {section.classes.map((v, idx) => (
+                                    <div key={idx} className="group flex flex-col">
+                                        <div 
+                                            onClick={() => setActiveVideo(v, section.classes)}
+                                            className="relative aspect-video rounded-3xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-blue-500/50 transition-all cursor-pointer shadow-2xl"
+                                        >
+                                            <img src={`https://img.youtube.com/vi/${v.id}/hqdefault.jpg`} alt={v.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                            <div className="absolute inset-0 bg-black/40 group-hover:bg-black/10 transition-colors"></div>
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 transform scale-75 group-hover:scale-100 transition-transform shadow-2xl">
+                                                    <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
+                                                </div>
+                                            </div>
+                                            
+                                            {v.notes && v.notes.length > 0 && (
+                                              <div className="absolute top-4 right-4 px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl flex items-center gap-2 shadow-xl">
+                                                <span className="text-xs">📄</span>
+                                                <span className="text-[9px] font-bold text-white uppercase tracking-widest">Notes</span>
+                                              </div>
+                                            )}
+                                        </div>
+                                        <div className="py-6 px-1">
+                                            <h3 className="text-sm font-bold text-white line-clamp-2 mb-2 group-hover:text-blue-400 transition-colors cursor-pointer leading-relaxed" onClick={() => setActiveVideo(v, section.classes)}>
+                                                {v.title}
+                                            </h3>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{section.title}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
             )}
         </div>
     );
 };
 
 export default StudyMode;
-
